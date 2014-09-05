@@ -8,6 +8,8 @@
 <canvas id="canvas_2" width="800" height="400" style="background-color:#333333;"></canvas>
 </body>
 <script type="text/javascript" src="lib/Box2dWeb-2.1.a.3.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js"></script>
+
 <script type="text/javascript">
     var scale = 4;
     var edge = 100;
@@ -151,6 +153,8 @@
 
 
         function draw(){
+            var canvas_debug = document.getElementById('canvas');
+            var ctx_debug = canvas_debug.getContext('2d');
 
             var canvas = document.getElementById('canvas_2');
             var ctx = canvas.getContext('2d');
@@ -176,7 +180,10 @@
                         }
                         ctx.strokeStyle=ud>8?'White':'Black';
                         ctx.stroke();
+                        ctx.fillStyle='Black';
+                        ctx.fillText(''+ud,scale*position.x,scale*position.y);
 
+                        ctx_debug.fillText(''+ud,scale*position.x,scale*position.y);
                     }else if (type === 1){
                         //type:1 polygon
                     }
