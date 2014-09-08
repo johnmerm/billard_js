@@ -89,7 +89,7 @@ function init() {
         }
     }
 
-
+    init3d();
 
     window.requestAnimationFrame(update);
 
@@ -178,6 +178,12 @@ function init() {
             draw();
         }
         window.lastStep = step;
+
+        cube.rotation.x += 0.1;
+        cube.rotation.y += 0.1;
+
+        //renderer.render(scene, camera);
+
         window.requestAnimationFrame(update);
     };
 
