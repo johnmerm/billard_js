@@ -4,20 +4,40 @@
     <script type="text/javascript" src="lib/Box2dWeb-2.1.a.3.js"></script>
 
 
-    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.js"></script>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js"></script>
+    <!--<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.js"></script>-->
+    <!--<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js"></script>-->
+
+    <script type="text/javascript" src="ball_textures.js"></script>
 
     <script type="text/javascript" src="two_d.js"></script>
+    <script type="text/javascript" src="draw.js"></script>
     <!--<script type="text/javascript" src="three_d.js"></script>-->
 
 </head>
-<body onload="init();">
+<body onload="init()">
     <div id="container2d">
         <canvas id="canvas" width="800" height="400" style="background-color:DarkGreen;"></canvas>
     </div>
 
-    <div id='container3d'>
+    <div id='container3d'></div>
+<!--
+    <div id='ball_container'>
+        <script type="text/javascript">
+            for (i in pats) {
+                var cv = document.createElement('canvas');
+                cv.height = 24;
+                cv.widht = 24;
+
+                var ctx = cv.getContext('2d');
+                var pat = ctx.createPattern(pats[i], 'no-repeat');
+                ctx.fillStyle = pat;
+                ctx.arc(12, 12, 12, 0, 6.28);
+                ctx.fill();
+                document.getElementById('ball_container').appendChild(cv);
+            }
+        </script>
 
     </div>
+-->
 </body>
 </html>

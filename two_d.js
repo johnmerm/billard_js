@@ -1,27 +1,35 @@
 var scale = 4;
 var edge = 100;
 var radius = 3;
-var wall = 1;
-var colors = ['azure', 'Yellow', 'Blue', 'Red', 'Purple', 'Orange', 'Lime', 'SaddleBrown', 'Black']
-function init() {
-    var b2Vec2 = Box2D.Common.Math.b2Vec2
-        , b2AABB = Box2D.Collision.b2AABB
-        , b2BodyDef = Box2D.Dynamics.b2BodyDef
-        , b2Body = Box2D.Dynamics.b2Body
-        , b2FixtureDef = Box2D.Dynamics.b2FixtureDef
-        , b2Fixture = Box2D.Dynamics.b2Fixture
-        , b2World = Box2D.Dynamics.b2World
-        , b2MassData = Box2D.Collision.Shapes.b2MassData
-        , b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape
-        , b2CircleShape = Box2D.Collision.Shapes.b2CircleShape
-        , b2DebugDraw = Box2D.Dynamics.b2DebugDraw
-        , b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef
-        ;
+var wall = 2;
 
-    var world = new b2World(
-        new b2Vec2(0, 0)    //gravity
-        , true                 //allow sleep
-    );
+
+var b2Vec2 = Box2D.Common.Math.b2Vec2
+    , b2AABB = Box2D.Collision.b2AABB
+    , b2BodyDef = Box2D.Dynamics.b2BodyDef
+    , b2Body = Box2D.Dynamics.b2Body
+    , b2FixtureDef = Box2D.Dynamics.b2FixtureDef
+    , b2Fixture = Box2D.Dynamics.b2Fixture
+    , b2World = Box2D.Dynamics.b2World
+    , b2MassData = Box2D.Collision.Shapes.b2MassData
+    , b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape
+    , b2CircleShape = Box2D.Collision.Shapes.b2CircleShape
+    , b2DebugDraw = Box2D.Dynamics.b2DebugDraw
+    , b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef
+    ;
+
+var world = new b2World(
+    new b2Vec2(0, 0)    //gravity
+    , true                 //allow sleep
+);
+
+var uds = [0,1,
+            2,9,
+           10,8,3,
+          4,11,5,12,
+         13,6,14,7,15];
+function init() {
+
 
     var fixDef = new b2FixtureDef;
     fixDef.density = 1.0;
@@ -56,7 +64,7 @@ function init() {
     world.CreateBody(bodyDef).CreateFixture(fixDef);
 
     //create balls
-    var ud = 0;
+
     bodyDef.type = b2Body.b2_dynamicBody;
 //        fixDef = new b2FixtureDef;
 //        fixDef.density = 1.0;
@@ -64,16 +72,17 @@ function init() {
 //        fixDef.restitution = 0.4;
 
     fixDef.shape = new b2CircleShape(radius);
-    fixDef.userData = ud;
+    fixDef.userData = 0;
 
     bodyDef.position.Set(edge / 2, edge / 2);
     world.CreateBody(bodyDef).CreateFixture(fixDef);
 
+    var ud = 1;
     for (var i = 0; i < 5; i++) {
         var x = edge + i * radius;
         var y = edge / 2 - i * radius;
         for (var j = 0; j <= i; j++) {
-            fixDef.userData = ++ud;
+            fixDef.userData = uds[ud++];
             bodyDef.position.Set(x + i * radius, y + j * (2 * radius));
 
             world.CreateBody(bodyDef).CreateFixture(fixDef);
@@ -131,48 +140,7 @@ function init() {
     }
 
 
-    function draw() {
 
-        var canvas = document.getElementById('canvas');
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        var body = world.GetBodyList();
-        while (body) {
-            var position = body.GetPosition();
-            var fixture = body.GetFixtureList();
-            if (fixture) {
-                var shape = fixture.GetShape();
-                var type = shape.GetType();
-                //type:0 circle
-                if (type === 0) {
-                    var rad = shape.GetRadius();
-                    ctx.beginPath();
-                    ctx.arc(scale * position.x, scale * position.y, scale * rad, 0, 2 * Math.PI);
-                    var ud = fixture.GetUserData();
-
-                    if (ud) {
-
-                        ctx.fillStyle = colors[ud > 8 ? ud - 8 : ud];
-                        ctx.fill();
-                    }
-                    ctx.strokeStyle = ud > 8 ? 'White' : 'Black';
-                    ctx.stroke();
-                    ctx.fillStyle = 'Black';
-                    ctx.fillText('' + ud, scale * position.x, scale * position.y);
-
-                } else if (type === 1) {
-                    //type:1 polygon
-                }
-
-                //console.log('('+position.x+','+position.y+')'+shape.GetType() + ' ' + fixture.GetUserData());
-            } else {
-                //console.log('body without fixture')
-            }
-            body = body.GetNext();
-        }
-
-
-    }
 
 
     //update
