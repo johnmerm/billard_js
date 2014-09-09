@@ -1,5 +1,5 @@
 function draw() {
-
+    var balls = {}
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d');
     ctx.strokeStyle = "black";
@@ -13,11 +13,11 @@ function draw() {
             var type = shape.GetType();
             //type:0 circle
             if (type === 0) {
+
                 var rad = shape.GetRadius();
 
                 var ud = fixture.GetUserData();
-
-
+                balls[ud] = {x:position.x,y:position.y,angle:body.GetAngle()};
                 var pat = ctx.createPattern(pats[ud],'no-repeat');
                 ctx.fillStyle = pat;
 
@@ -63,6 +63,7 @@ function draw() {
         }
         body = body.GetNext();
     }
+    return balls;
 
 
 }

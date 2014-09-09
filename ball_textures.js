@@ -4,6 +4,7 @@ var colors = ['white', 'Yellow', 'Blue', 'Red', 'Purple', 'Orange', 'Lime', 'Sad
 var pats=[];
 
 var cv = document.createElement('canvas');
+cv.height=24;cv.width=24;
 var ctx = cv.getContext('2d');
 
 
@@ -31,6 +32,7 @@ for (var i=0;i<9;i++){
     var texture = cv.toDataURL();
 
     var img = document.createElement('img');
+    img.height=24;img.width=24;
     img.src=texture;
 
 

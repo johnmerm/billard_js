@@ -175,11 +175,11 @@ function init() {
             var timeStep = 1 / elapsed_secs;
             world.Step(timeStep, 10, 10);
             world.ClearForces();
-            draw();
+            render3dFunction(draw());
         }
         window.lastStep = step;
 
-        render3dFunction();
+
 
         window.requestAnimationFrame(update);
     };
