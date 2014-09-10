@@ -24,10 +24,10 @@ var world = new b2World(
 );
 
 var uds = [0,1,
-            2,9,
-           10,8,3,
-          4,11,5,12,
-         13,6,14,7,15];
+            2,10,
+           11,8,3,
+          4,14,6,12,
+         13,7,9,15,5];
 function init() {
 
 
@@ -174,8 +174,8 @@ function init() {
             var elapsed_secs = delta;
             var timeStep = 1 / elapsed_secs;
             world.Step(timeStep, 10, 10);
-            world.ClearForces();
             render3dFunction(draw());
+            world.ClearForces();
         }
         window.lastStep = step;
 
