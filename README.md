@@ -3,10 +3,17 @@
 An eight ball game in the browser: a table seen from directly above, and a
 second camera that rides inside the cue ball.
 
-Open `index.html` — no build step, no package manager, no network.
+## Playing it
 
-https://cdn.rawgit.com/johnmerm/billard_js/master/demo.html is the original
-Box2D prototype, which is still in the repo as `demo.html`.
+Open `index.html` — no build step, no package manager, no network. Cloning the
+repo and double clicking the file is enough; every script it loads sits next to
+it.
+
+Served from GitHub Pages (Settings → Pages → deploy from the default branch) it
+lives at **https://johnmerm.github.io/billard_js/**, and the original Box2D
+prototype, still in the repo as `demo.html`, at
+https://johnmerm.github.io/billard_js/demo.html. The old `cdn.rawgit.com` link
+that used to be here stopped working when rawgit shut down in 2019.
 
 ## The two views
 
