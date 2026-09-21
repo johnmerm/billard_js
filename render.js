@@ -6,9 +6,10 @@
  * the point of view shot. Either can be the big picture; the other becomes an
  * inset, so you can line a shot up from above and still watch it from the ball.
  *
- * Coordinates: the physics world is x/y across the cloth with z up. Three.js
- * wants y up, so a table point (x, y) becomes (x - W/2, height, -(y - H/2)),
- * which keeps the handedness and lets ball spin map straight across.
+ * Coordinates: cannon.js and three.js share a frame here - y up, origin in the
+ * middle of the table - so ball bodies copy straight onto meshes. The game's
+ * table coordinates (x along the length, y across the width, both from a
+ * corner) are converted the same way phys.js does it: (x - W/2, h, -(y - H/2)).
  */
 function Renderer(canvas, world) {
     'use strict';
@@ -242,10 +243,12 @@ function Renderer(canvas, world) {
             mesh.visible = shadow.visible = ball.active;
             if (!ball.active) return;
 
-            mesh.position.set(ball.x - W / 2, R, -(ball.y - H / 2));
-            // vector part of the quaternion maps like any other table vector
-            mesh.quaternion.set(ball.qx, ball.qz, -ball.qy, ball.qw);
-            shadow.position.set(ball.x - W / 2 + R * 0.12, 0.006, -(ball.y - H / 2) + R * 0.1);
+            // the rigid body already lives in this scene's coordinates, so its
+            // position and orientation copy straight across
+            mesh.position.copy(ball.body.position);
+            mesh.quaternion.copy(ball.body.quaternion);
+            shadow.position.set(ball.body.position.x + R * 0.12, 0.006, ball.body.position.z + R * 0.1);
+            shadow.visible = ball.body.position.y > -R;   // gone once it drops in
         });
     };
 

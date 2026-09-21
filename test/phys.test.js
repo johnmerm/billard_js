@@ -1,8 +1,10 @@
 /**
  * Physics regression tests: node test/phys.test.js
  *
- * These are the properties the game leans on - balls stop, spin does what a
- * player expects, good shots drop, and nothing ever ends up off the cloth.
+ * phys.js drives cannon.js, and cannon.js runs in node, so the whole table can
+ * be played here with no browser. These are the properties the game leans on -
+ * balls stop, spin does what a player expects, good shots drop, and a hard
+ * break leaves the rack on the cloth.
  */
 var Phys = require('../phys.js');
 
@@ -37,6 +39,17 @@ function potted(result) {
 }
 
 /* ------------------------------------------------------------------ */
+
+console.log('engine');
+
+check('cannon.js is doing the simulation', !!Phys.CANNON && !!Phys.CANNON.World,
+    'no cannon.js');
+(function () {
+    var w = table();
+    check('the table is a cannon world with bodies in it',
+        w.cannon instanceof Phys.CANNON.World && w.cannon.bodies.length > 1,
+        w.cannon ? w.cannon.bodies.length + ' bodies' : 'no world');
+})();
 
 console.log('rest and friction');
 
@@ -119,6 +132,28 @@ console.log('pocketing');
         check('pocket ' + i + ' accepts a straight shot', potted(res).indexOf(1) >= 0,
             'potted ' + JSON.stringify(potted(res)));
     }
+})();
+
+console.log('pockets are holes, not trigger zones');
+
+(function () {
+    var w = table();
+    var b = w.add(new Phys.Ball(0, 1.12, 0.3));
+    w.strike(b, 0, -1, 1.6, 0, 0);            // straight at a side pocket
+
+    var dropped = false, pots = [], t = 0;
+    while (t < 6 && !pots.length) {
+        w.step(1 / 240).forEach(function (e) { if (e.type === 'pot') pots.push(e); });
+        t += 1 / 240;
+        if (b.height < -b.radius) dropped = true;
+    }
+
+    check('a ball that crosses a pocket mouth falls off the cloth', dropped,
+        'height ' + b.height.toFixed(3));
+    check('and is reported potted, in the pocket it fell into',
+        pots.length === 1 && pots[0].ball === b && !b.active &&
+        Math.abs(pots[0].pocket.x - 1.12) < 0.05,
+        pots.length ? JSON.stringify(pots[0].pocket) : 'no pot event');
 })();
 
 console.log('a full break');

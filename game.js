@@ -219,8 +219,8 @@
         }
 
         if (scratch) {
-            cueBall.active = true;
-            cueBall.stop();
+            // bring the cue ball back out of the pocket; it is placed by hand next
+            cueBall.placeAt(TABLE_W * 0.25, TABLE_H / 2);
         }
 
         var mine = objects.filter(function (id) {
@@ -555,9 +555,7 @@
 
         // the cue ball floats under the cursor while it is in hand
         if (state.phase === 'ballInHand' && state.ghost) {
-            cueBall.x = state.ghost.x;
-            cueBall.y = state.ghost.y;
-            cueBall.active = true;
+            cueBall.placeAt(state.ghost.x, state.ghost.y);
         }
 
         // on a narrow screen the controls sit under the inset, so lift it clear
