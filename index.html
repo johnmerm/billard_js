@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billiards</title>
+<style>
+    :root {
+        --ink: #f2f4f7;
+        --dim: #9aa4b1;
+        --panel: rgba(12, 16, 21, 0.72);
+        --edge: rgba(255, 255, 255, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: #070a0c;
+        color: var(--ink);
+        font: 14px/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif;
+        overflow: hidden;
+    }
+
+    #scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: crosshair;
+    }
+
+    .panel {
+        position: fixed;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        padding: 10px 12px;
+        backdrop-filter: blur(6px);
+    }
+
+    #status { top: 14px; left: 14px; min-width: 260px; max-width: 34vw; }
+
+    #turn { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+    #turn.p0 { color: #7fd0ff; }
+    #turn.p1 { color: #ffd35c; }
+
+    #message { color: var(--dim); margin-top: 4px; }
+
+    .groupline {
+        margin-top: 8px;
+        padding: 4px 6px;
+        border-radius: 7px;
+        color: var(--dim);
+        font-size: 12px;
+    }
+    .groupline.active { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
+    .groupline b { font-weight: 600; margin-right: 4px; }
+    .grp { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; opacity: 0.75; margin-right: 6px; }
+
+    .chip {
+        display: inline-block;
+        width: 19px; height: 19px;
+        line-height: 19px;
+        text-align: center;
+        border-radius: 50%;
+        font-size: 10px;
+        font-weight: 700;
+        color: #10131a;
+        background: var(--c);
+        margin-right: 2px;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+    }
+    .chip.striped {
+        background: linear-gradient(#f6f4ef 0 26%, var(--c) 26% 74%, #f6f4ef 74%);
+    }
+    .chip.gone { opacity: 0.2; }
+
+    #controls { left: 14px; bottom: 14px; display: flex; gap: 14px; align-items: flex-end; }
+
+    #power { width: 190px; }
+    #powerbar {
+        height: 12px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+        border: 1px solid var(--edge);
+    }
+    #powerfill {
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #4ea36b, #f2c500 60%, #d8422c);
+    }
+    .label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; }
+
+    #spin { width: 74px; height: 74px; cursor: pointer; }
+
+    #keys { color: var(--dim); font-size: 11px; line-height: 1.7; }
+    #keys kbd {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--edge);
+        border-radius: 4px;
+        padding: 0 4px;
+        font: inherit;
+    }
+
+    #buttons { right: 14px; top: 14px; display: flex; gap: 8px; padding: 8px; }
+    button {
+        font: inherit;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--edge);
+        border-radius: 7px;
+        padding: 6px 11px;
+        cursor: pointer;
+    }
+    button:hover { background: rgba(255, 255, 255, 0.16); }
+
+    #insetframe {
+        position: fixed;
+        pointer-events: none;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        color: rgba(255, 255, 255, 0.75);
+        padding: 4px 6px;
+    }
+</style>
+</head>
+<body>
+    <canvas id="scene"></canvas>
+    <div id="insetframe"></div>
+
+    <div id="status" class="panel">
+        <div id="turn">Player 1</div>
+        <div id="message"></div>
+        <div id="group0" class="groupline"></div>
+        <div id="group1" class="groupline"></div>
+    </div>
+
+    <div id="buttons" class="panel">
+        <button id="swap">Swap views (V)</button>
+        <button id="newgame">New rack (R)</button>
+    </div>
+
+    <div id="controls" class="panel">
+        <div id="power">
+            <div class="label">Power</div>
+            <div id="powerbar"><div id="powerfill"></div></div>
+            <div id="keys" style="margin-top:8px">
+                <kbd>drag</kbd> aim &middot; <kbd>hold click</kbd> or <kbd>space</kbd> to charge, release to shoot<br>
+                <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound
+            </div>
+        </div>
+        <div>
+            <div class="label">Spin</div>
+            <canvas id="spin" width="74" height="74"></canvas>
+        </div>
+    </div>
+
+    <script src="lib/three.js"></script>
+    <script src="phys.js"></script>
+    <script src="ball_skins.js"></script>
+    <script src="render.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
