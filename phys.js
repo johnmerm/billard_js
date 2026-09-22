@@ -170,6 +170,7 @@
         this.cushions = [];       // table coordinate segments, also drawn by the renderer
         this.events = [];
 
+        this.slateBounce = opts.slateBounce !== undefined ? opts.slateBounce : 0.45;
         this.slidingFriction = opts.slidingFriction !== undefined ? opts.slidingFriction : 0.2;
         this.rollingFriction = opts.rollingFriction !== undefined ? opts.rollingFriction : 0.012;
         this.spinFriction = opts.spinFriction !== undefined ? opts.spinFriction : 0.6;
@@ -508,35 +509,61 @@
      * Hit a ball with the cue: an impulse applied off centre, which is all
      * cannon needs to produce draw, follow and english.
      *
+     * Raise the butt of the cue and the impulse points downwards instead of
+     * along the cloth. The ball is driven into the slate, which is rigid and
+     * hands most of it straight back: that rebound is the jump. The bed contact
+     * cannot do this itself - a ball resting on it is already touching, so
+     * there is nothing to fall through - so the bounce is put in here, and the
+     * ball leaves at roughly half the angle the cue was raised to, which is
+     * what a jump shot does.
+     *
      * @param {Phys.Ball} ball
-     * @param {number} dirX  aim direction in table coordinates
+     * @param {number} dirX   aim direction in table coordinates
      * @param {number} dirY
      * @param {number} speed  m/s
      * @param {number} side   sideways tip offset in ball radii, -1..1 (right is positive)
      * @param {number} vert   vertical tip offset in ball radii, -1..1 (up is follow)
+     * @param {number} elev   how far the cue is raised, in radians, 0 is level
      */
-    Table.prototype.strike = function (ball, dirX, dirY, speed, side, vert) {
+    Table.prototype.strike = function (ball, dirX, dirY, speed, side, vert, elev) {
         var len = Math.sqrt(dirX * dirX + dirY * dirY);
         if (!len) return;
 
         side = clamp(side || 0, -0.7, 0.7);
         vert = clamp(vert || 0, -0.7, 0.7);
+        elev = clamp(elev || 0, 0, 1.2);                // up to about 69 degrees
 
+        var along = Math.cos(elev), into = Math.sin(elev);
         var dx = dirX / len, dz = -dirY / len;          // aim, in world coordinates
         var sx = -dz, sz = dx;                          // the player's right hand side
+
+        // the cue's own axes: down the shaft, and square to it
+        var ix = dx * along, iy = -into, iz = dz * along;
+        var ux = -sz * iy, uy = sz * ix - sx * iz, uz = sx * iy;
+        var ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+        ux /= ul; uy /= ul; uz /= ul;
+
         var reach = Math.sqrt(Math.max(0, 1 - side * side - vert * vert));
         var r = ball.radius, body = ball.body;
 
         // where the tip meets the ball, as an offset from its centre
         var tip = new CANNON.Vec3(
-            (sx * side - dx * reach) * r,
-            vert * r,
-            (sz * side - dz * reach) * r
+            (sx * side + ux * vert - ix * reach) * r,
+            (uy * vert - iy * reach) * r,
+            (sz * side + uz * vert - iz * reach) * r
         );
 
         body.wakeUp();
-        body.applyImpulse(new CANNON.Vec3(dx * speed * ball.mass, 0, dz * speed * ball.mass), tip);
-        this.events.push({type: 'strike', ball: ball, speed: speed});
+        body.applyImpulse(new CANNON.Vec3(
+            ix * speed * ball.mass,
+            iy * speed * ball.mass,
+            iz * speed * ball.mass
+        ), tip);
+
+        // the slate throws back most of what was driven into it
+        if (into > 0) body.velocity.y = this.slateBounce * speed * into;
+
+        this.events.push({type: 'strike', ball: ball, speed: speed, elevation: elev});
     };
 
     /* ----------------------------- stepping --------------------------- */

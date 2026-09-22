@@ -204,6 +204,51 @@ console.log('pocketing');
     }
 })();
 
+console.log('jump shots');
+
+(function () {
+    var w = table();
+    var cue = w.add(new Phys.Ball(0, 0.5, 0.56));
+    var blocker = w.add(new Phys.Ball(1, 0.78, 0.56));
+    var target = w.add(new Phys.Ball(2, 1.15, 0.56));
+
+    w.strike(cue, 1, 0, 4.5, 0, 0, 55 * Math.PI / 180);
+
+    var t = 0, peak = 0, hitBlocker = false, hitTarget = false, blockerAsPassed = null;
+    while (t < 3 && !hitTarget) {
+        w.step(1 / 480).forEach(function (e) {
+            if (e.type !== 'ballHit') return;
+            if (e.a.id !== 0 && e.b.id !== 0) return;
+            var other = e.a.id === 0 ? e.b : e.a;
+            if (other.id === 1) hitBlocker = true;
+            if (other.id === 2 && !hitBlocker) hitTarget = true;
+        });
+        t += 1 / 480;
+        peak = Math.max(peak, cue.height - cue.radius);
+        // where the ball in the way stood as the cue ball went over it
+        if (blockerAsPassed === null && cue.x > 0.78) blockerAsPassed = blocker.x;
+    }
+
+    check('a raised cue lifts the ball over another', peak > cue.radius * 2,
+        (peak * 1000).toFixed(0) + ' mm, needs ' + (cue.radius * 2000).toFixed(0));
+    check('it clears the ball in the way', !hitBlocker);
+    check('and lands on the one behind it', hitTarget);
+    check('the ball it jumped never moved', Math.abs(blockerAsPassed - 0.78) < 0.001,
+        blockerAsPassed === null ? 'never got past it' : blockerAsPassed.toFixed(4));
+})();
+
+(function () {
+    // a level cue must still not jump
+    var w = table();
+    var cue = w.add(new Phys.Ball(0, 0.5, 0.56));
+    w.strike(cue, 1, 0, 6, 0, 0.5, 0);
+    var t = 0, peak = 0;
+    // just the run down the table, before any cushion gets involved
+    while (t < 0.25) { w.step(1 / 480); t += 1 / 480; peak = Math.max(peak, cue.height - cue.radius); }
+    check('a level cue keeps the ball on the cloth', peak < 0.005,
+        (peak * 1000).toFixed(1) + ' mm');
+})();
+
 console.log('balls stay on the cloth');
 
 (function () {

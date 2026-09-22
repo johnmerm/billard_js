@@ -35,6 +35,7 @@ with a keyboard.
 | hold **SHOOT** | build power, let go to take the shot |
 | **◀ ▶** | nudge the aim — a tap is a hair, holding sweeps |
 | the spin dial | drag the tip around the cue ball; double click to centre it |
+| the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
 | the small view | tap it to bring it up front |
 | the top right buttons | swap views, sound, new rack |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
@@ -64,6 +65,21 @@ until the first ball is potted after the break, then you are on solids or
 stripes, and the 8 goes last. Scratching, hitting the wrong ball first, hitting
 nothing, or failing to reach a cushion is a foul and hands your opponent ball in
 hand. The 8 on the break is spotted rather than losing the game.
+
+## Jump shots
+
+Raise the cue and the tip drives the ball down into the slate instead of along
+the cloth. The slate is rigid and hands most of that straight back, which is the
+jump: the ball leaves at roughly half the angle the cue was raised to, so 45
+degrees of cue gets about 24 degrees of launch. At 55 degrees and a firm stroke
+the cue ball clears 14 cm — a ball is 5.7 cm tall — and lands in time to hit
+something 50 cm away.
+
+The table view looks straight down, where height does not show at all, so a
+jumping ball would appear to slide through whatever it is jumping over. Its
+shadow is what gives it away: it slides out from under the ball and fades as the
+ball climbs. The view from the cue ball rides the real height, so a jump takes
+you up with it.
 
 ## What is where
 

@@ -151,7 +151,7 @@ function Renderer(canvas, world) {
         scene.add(mesh);
         meshes[ball.id] = mesh;
 
-        var shadow = new THREE.Mesh(shadowGeom, shadowMat);
+        var shadow = new THREE.Mesh(shadowGeom, shadowMat.clone());
         shadow.rotation.x = -Math.PI / 2;
         scene.add(shadow);
         shadows[ball.id] = shadow;
@@ -159,7 +159,14 @@ function Renderer(canvas, world) {
 
     /* ------------------------- cue and guides ------------------------- */
 
-    var cue = new THREE.Object3D();
+    // aim turns the yaw, elevation tips the pitch, power slides it back
+    var cueYaw = new THREE.Object3D();
+    var cuePitch = new THREE.Object3D();
+    var cueSlide = new THREE.Object3D();
+    cueYaw.add(cuePitch);
+    cuePitch.add(cueSlide);
+
+    var cue = cueSlide;
     var shaft = new THREE.Mesh(
         new THREE.CylinderGeometry(R * 0.21, R * 0.38, 1.35, 16),
         new THREE.MeshPhongMaterial({color: 0xc9a06a, shininess: 45})
@@ -175,8 +182,7 @@ function Renderer(canvas, world) {
     tip.rotation.z = Math.PI / 2;
     tip.position.x = -R * 0.18;
     cue.add(tip);
-    cue.position.y = R;
-    scene.add(cue);
+    scene.add(cueYaw);
 
     // aiming guide: cue ball path, ghost ball at contact, and the two lines the
     // balls take away from it
@@ -302,7 +308,19 @@ function Renderer(canvas, world) {
             // position and orientation copy straight across
             mesh.position.copy(ball.body.position);
             mesh.quaternion.copy(ball.body.quaternion);
-            shadow.position.set(ball.body.position.x + R * 0.12, 0.006, ball.body.position.z + R * 0.1);
+
+            // The table view looks straight down, where height does not show at
+            // all, so a jumping ball would slide over another one and look like
+            // a bug. Its shadow is what gives it away: it slides out from under
+            // the ball, spreads and fades as the ball climbs.
+            var lift = Math.max(0, ball.body.position.y - R);
+            shadow.position.set(
+                ball.body.position.x + R * 0.12 + lift * 0.45,
+                0.006,
+                ball.body.position.z + R * 0.1 + lift * 0.35
+            );
+            shadow.scale.setScalar(1 + lift * 5);
+            shadow.material.opacity = 0.32 / (1 + lift * 14);
             shadow.visible = ball.body.position.y > -R;   // gone once it drops in
         });
     };
@@ -322,7 +340,7 @@ function Renderer(canvas, world) {
     this.setAim = function (aim) {
         var visible = !!aim;
         self._cueVisible = visible;   // the pov pass hides the cue, then restores it
-        cue.visible = visible;
+        cueYaw.visible = visible;
         aimLine.visible = visible;
         objectLine.visible = visible;
         cueLine.visible = visible;
@@ -332,10 +350,12 @@ function Renderer(canvas, world) {
         var ball = aim.ball;
         var dx = Math.cos(aim.angle), dy = Math.sin(aim.angle);
 
-        // pull the cue back with the power, and offset the tip with the english
-        var back = R * 1.15 + aim.power * 0.22;
-        cue.position.set(ball.x - W / 2 - dx * back, R + aim.vert * R * 0.8, -(ball.y - H / 2) + dy * back);
-        cue.rotation.y = Math.atan2(dy, dx);
+        // sit the cue on the ball, point it, raise it, then pull it back with
+        // the power - the butt lifts and the tip stays where it strikes
+        cueYaw.position.set(ball.x - W / 2, R + aim.vert * R * 0.8, -(ball.y - H / 2));
+        cueYaw.rotation.y = Math.atan2(dy, dx);
+        cuePitch.rotation.z = -(aim.elevation || 0);
+        cueSlide.position.x = -(R * 1.15 + aim.power * 0.22);
 
         var hit = world.firstContact(ball.x, ball.y, dx, dy, ball);
         var range = hit ? hit.distance : 3.2;
@@ -347,7 +367,11 @@ function Renderer(canvas, world) {
         ghost.position.set(hx - W / 2, R, -(hy - H / 2));
         ghost.visible = !!hit;
 
-        if (hit && hit.type === 'ball') {
+        if ((aim.elevation || 0) > 0.17) {
+            // raised enough to jump: the ball is going over whatever is in the
+            // way, so the contact guides on the cloth would be telling stories
+            ghost.visible = objectLine.visible = cueLine.visible = false;
+        } else if (hit && hit.type === 'ball') {
             // object ball leaves along the line of centres, cue ball at a right
             // angle to it - the two lines every player draws in their head
             var ox = hit.ball.x - hx, oy = hit.ball.y - hy;
@@ -390,14 +414,17 @@ function Renderer(canvas, world) {
 
         // while the ball is in hand the view rides the marker instead
         var from = inHand.visible
-            ? {x: inHand.position.x, z: inHand.position.z}
-            : {x: cueBall.x - W / 2, z: -(cueBall.y - H / 2)};
+            ? {x: inHand.position.x, y: R, z: inHand.position.z}
+            : {x: cueBall.x - W / 2, y: cueBall.height, z: -(cueBall.y - H / 2)};
         var x = from.x, z = from.z;
-        // just above the centre of the ball, tipped down a touch so the cloth
-        // and the object balls fill the frame rather than the room
-        povCamera.position.set(x, R * 1.5, z);
+
+        // Just above the centre of the ball, tipped down a touch so the cloth
+        // and the object balls fill the frame rather than the room. It rides
+        // the ball's real height, so a jump shot takes the view up with it.
+        var eye = Math.max(from.y + R * 0.5, R * 1.2);
+        povCamera.position.set(x, eye, z);
         povCamera.up.set(0, 1, 0);
-        povCamera.lookAt(new THREE.Vector3(x + dx, R * 1.1, z - dy));
+        povCamera.lookAt(new THREE.Vector3(x + dx, eye - R * 0.4, z - dy));
     }
 
     /**
@@ -487,7 +514,7 @@ function Renderer(canvas, world) {
         var markerWas = inHand.visible;
         if (hideCue) {
             cueMesh.visible = false;
-            cue.visible = false;
+            cueYaw.visible = false;
             inHand.visible = false;      // the camera is sitting inside it
         }
 
@@ -499,7 +526,7 @@ function Renderer(canvas, world) {
 
         if (hideCue) {
             cueMesh.visible = world.ball(0).active;
-            cue.visible = self._cueVisible;
+            cueYaw.visible = self._cueVisible;
             inHand.visible = markerWas;
         }
     }

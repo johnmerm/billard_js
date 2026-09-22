@@ -26,6 +26,8 @@
         chargeStart: 0,
         side: 0,
         vert: 0,
+        elevation: 0,               // how far the cue is raised, in degrees
+        timeScale: 1,               // slow the table down, for a closer look
         message: 'Break them up: place the cue ball behind the line and fire.',
         pocketed: [],
         ghost: null,                // cue ball position while placing it
@@ -142,9 +144,10 @@
             breakShot: !state.broken, target: legalTarget()
         };
         world.strike(cueBall, Math.cos(state.angle), Math.sin(state.angle),
-            state.power, state.side, state.vert);
+            state.power, state.side, state.vert, state.elevation * Math.PI / 180);
         state.phase = 'rolling';
         state.broken = true;
+        setElevation(0);            // the cue goes back down for the next shot
         Sound.hit(state.power / MAX_POWER);
         updatePowerBar();      // empty the shoot button now, not on the next frame
     }
@@ -485,6 +488,12 @@
                 state.side = state.vert = 0;
                 drawSpinWidget();
                 break;
+            case 'BracketLeft':
+                setElevation(state.elevation - (e.shiftKey ? 1 : 5));
+                break;
+            case 'BracketRight':
+                setElevation(state.elevation + (e.shiftKey ? 1 : 5));
+                break;
             case 'KeyV':
                 view.swapViews();
                 break;
@@ -502,6 +511,22 @@
 
     function onKeyUp(e) {
         if (e.code === 'Space') releaseCharge();
+    }
+
+    /**
+     * How far the cue is raised, in degrees. Level is a normal shot; raise it
+     * and the ball is driven into the cloth and hops, which is how you get over
+     * a ball that is in the way.
+     */
+    function setElevation(deg) {
+        state.elevation = Phys.clamp(Math.round(deg), 0, 60);
+
+        var slider = document.getElementById('elev');
+        if (slider && +slider.value !== state.elevation) slider.value = state.elevation;
+        document.getElementById('elevvalue').innerHTML = state.elevation + '&deg;';
+        document.getElementById('elevhint').textContent =
+            state.elevation === 0 ? 'level' :
+                (state.elevation < 25 ? 'a little air' : 'jump shot');
     }
 
     /** The little cue ball dial that sets where the tip strikes. */
@@ -720,6 +745,7 @@
     function frame(now) {
         var dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
         last = now;
+        dt *= state.timeScale;      // 1 is real time; lower runs the table slowly
 
         sweepAim(now);
 
@@ -749,7 +775,8 @@
         var aiming = state.phase === 'aiming' || state.phase === 'charging';
         view.setAim(aiming ? {
             ball: cueBall, angle: state.angle, power: state.power,
-            side: state.side, vert: state.vert
+            side: state.side, vert: state.vert,
+            elevation: state.elevation * Math.PI / 180
         } : null);
 
         refreshHud();
@@ -833,6 +860,11 @@
         holdButton(document.getElementById('aimleft'), function () { startNudge(-1); }, stopNudge);
         holdButton(document.getElementById('aimright'), function () { startNudge(1); }, stopNudge);
 
+        var elev = document.getElementById('elev');
+        elev.addEventListener('input', function () { setElevation(+this.value); });
+        elev.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        setElevation(0);
+
         document.getElementById('newgame').addEventListener('click', newGame);
         document.getElementById('swap').addEventListener('click', function () { view.swapViews(); });
         document.getElementById('sound').addEventListener('click', function () {
@@ -856,13 +888,19 @@
         newGame: newGame,
         place: function (x, y) { return state.phase === 'ballInHand' && placeCueBall(x, y); },
         aimAt: function (x, y) { aimAt({x: x, y: y}); return state.angle; },
-        shoot: function (power, side, vert) {
+        shoot: function (power, side, vert, elevation) {
             if (state.phase !== 'aiming') return false;
             state.power = Phys.clamp(power, MIN_POWER, MAX_POWER);
             state.side = side || 0;
             state.vert = vert || 0;
+            if (elevation !== undefined) setElevation(elevation);
             shoot();
             return true;
+        },
+        elevate: function (deg) { setElevation(deg); return state.elevation; },
+        slowMotion: function (scale) {
+            state.timeScale = Phys.clamp(scale, 0.05, 1);
+            return state.timeScale;
         }
     };
 })();

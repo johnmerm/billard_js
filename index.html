@@ -151,6 +151,16 @@
 
     #spin { width: 78px; height: 78px; cursor: pointer; touch-action: none; }
 
+    #elevgroup { width: 96px; }
+    #elev {
+        width: 100%;
+        accent-color: #7fd0ff;
+        touch-action: none;
+        cursor: pointer;
+        margin: 4px 0;
+    }
+    .hint { font-size: 10px; color: var(--dim); text-align: center; }
+
     #power { width: 180px; align-self: stretch; }
     #powerbar {
         width: 100%;
@@ -252,6 +262,8 @@
 
     body.touch .nudge { width: 60px; height: 60px; font-size: 21px; }
     body.touch #spin { width: 96px; height: 96px; }
+    body.touch #elevgroup { width: 120px; }
+    body.touch #elev { height: 28px; }
     body.touch #shoot { width: 96px; height: 96px; font-size: 13px; }
     body.touch #power { width: 84px; }
     body.touch button { padding: 11px 13px; font-size: 16px; }
@@ -271,6 +283,7 @@
         body.touch #spin { width: 78px; height: 78px; }
         body.touch .nudge { width: 54px; height: 54px; }
         body.touch #shoot { width: 84px; height: 84px; }
+        body.touch #elevgroup { width: 96px; }
     }
 
     /* narrow screens: the shoot button already shows the power, so the bar goes */
@@ -312,12 +325,20 @@
             <canvas id="spin" width="78" height="78"></canvas>
         </div>
 
+        <div class="group" id="elevgroup">
+            <div class="label">Cue <span id="elevvalue">0&deg;</span></div>
+            <input id="elev" type="range" min="0" max="60" step="1" value="0"
+                   aria-label="How far the cue is raised">
+            <div class="hint" id="elevhint">level</div>
+        </div>
+
         <div class="group" id="power">
             <div class="label">Power</div>
             <div id="powerbar"><div id="powerfill"></div></div>
             <div id="keys">
                 <kbd>drag</kbd> aim &middot; <kbd>hold click</kbd> or <kbd>space</kbd> to charge, release to shoot<br>
                 <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound<br>
+                <kbd>[</kbd><kbd>]</kbd> raise the cue for a jump shot<br>
                 drag a panel by its <b>&#8942;&#8942;</b> grip to move it &middot; double tap a grip to put it back &middot; <kbd>L</kbd> resets them all
             </div>
         </div>
