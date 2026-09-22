@@ -20,9 +20,16 @@ that used to be here stopped working when rawgit shut down in 2019.
 The table view is an orthographic camera straight overhead: that is the view you
 aim in, and the one that shows the whole layout. The cue ball view is a
 perspective camera sitting at the centre of the white ball, pointing wherever you
-are aiming, and along the direction of travel once the ball is moving. Either one
-can be the big picture — press **V** (or the button) to swap the inset and the
-main view.
+are aiming, and along the direction of travel once the ball is moving — a jump
+shot takes it up with the ball.
+
+They are panes, not a picture in a picture: each owns its own strip of the
+screen and neither covers any part of the other. They divide the space along its
+longer side, so a landscape window puts them side by side and a tall one stacks
+them, and they only tile what the panels have left rather than running underneath
+the controls. Drag the seam between them to give one more room than the other —
+where you leave it is remembered. **V**, the button, or a tap on the cue ball
+pane swaps which view is which.
 
 ## Controls
 
@@ -36,7 +43,8 @@ with a keyboard.
 | **◀ ▶** | nudge the aim — a tap is a hair, holding sweeps |
 | the spin dial | drag the tip around the cue ball; double click to centre it |
 | the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
-| the small view | tap it to bring it up front |
+| the cue ball pane | tap it to swap the two views |
+| the seam between the views | drag it to give one of them more room |
 | the top right buttons | swap views, sound, new rack |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 | ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |

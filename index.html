@@ -235,17 +235,52 @@
 
     /* ------------------------------------------------------ pov inset */
 
-    #insetframe {
+    /* the two views are panes, not a picture in a picture: each one owns its
+       own strip of the canvas and the seam between them can be dragged */
+    .cap {
         position: fixed;
-        touch-action: none;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
         font-size: 10px;
         letter-spacing: 0.14em;
-        color: rgba(255, 255, 255, 0.75);
-        padding: 4px 6px;
+        color: rgba(255, 255, 255, 0.6);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        padding: 5px 8px;
     }
+
+    #seam {
+        position: fixed;
+        left: 0;
+        right: 0;
+        height: 14px;
+        margin-top: -7px;
+        cursor: row-resize;
+        touch-action: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #seam::after {
+        content: "";
+        width: 52px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.22);
+    }
+    #seam:hover::after, #seam.dragging::after { background: rgba(255, 255, 255, 0.5); }
+    body.touch #seam { height: 26px; margin-top: -13px; }
+
+    /* side by side: the seam stands up and the grip turns with it */
+    #seam.vertical {
+        left: auto;
+        right: auto;
+        width: 14px;
+        height: auto;
+        margin-top: 0;
+        margin-left: -7px;
+        cursor: col-resize;
+    }
+    #seam.vertical::after { width: 4px; height: 52px; }
+    body.touch #seam.vertical { width: 26px; margin-left: -13px; }
 
     /* ------------------------------------------------ touch layout */
 
@@ -296,7 +331,9 @@
 </head>
 <body>
     <canvas id="scene"></canvas>
-    <div id="insetframe"><span id="insetlabel"></span></div>
+    <div id="capupper" class="cap"></div>
+    <div id="caplower" class="cap"></div>
+    <div id="seam" title="Drag to give one view more room"></div>
 
     <div id="status" class="panel">
         <div id="turn">Player 1</div>

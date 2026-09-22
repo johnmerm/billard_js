@@ -238,11 +238,11 @@ function Renderer(canvas, world) {
 
     var povCamera = new THREE.PerspectiveCamera(72, 1.6, 0.004, 24);
 
-    var swapped = false;     // false: table view large, pov inset
+    var swapped = false;     // false: table on top, cue ball view below
     var portrait = false;    // tall viewport: stand the table on end
-    var insetEdge = 'bottom';    // which edge the inset hangs from
-    var insetOffset = 0;         // and how far in, to clear the page's panels
-    var insetPos = null;         // or wherever it was dragged to
+    var splitRatio = 0.62;   // how much of the free area the upper pane gets
+    var SPLIT_GAP = 8;       // the seam between the two panes
+    var region = {top: 0, bottom: 0};   // bands the page's panels have taken
 
     /**
      * Fit the table into the part of the view the page has left free, then open
@@ -431,16 +431,6 @@ function Renderer(canvas, world) {
      * Hang the inset from the top or the bottom of the canvas, `offset` pixels
      * in, so the page can keep it clear of its own panels.
      */
-    /** Pin the inset at a canvas position, or pass null to let it dock again. */
-    this.setInsetPosition = function (x, y) {
-        insetPos = (x === null || x === undefined) ? null : {x: x, y: y};
-    };
-
-    this.setInsetPlacement = function (edge, offset) {
-        insetEdge = edge === 'top' ? 'top' : 'bottom';
-        insetOffset = offset || 0;
-    };
-
     this.swapViews = function () {
         swapped = !swapped;
         return swapped;
@@ -456,6 +446,13 @@ function Renderer(canvas, world) {
      *
      * @return {Object} pixel rectangles of the two views, for the HUD and picking
      */
+    /**
+     * Draw both views, one above the other. They are panes rather than a
+     * picture in a picture: neither covers any part of the other, and the seam
+     * between them can be dragged to give one more room than the other.
+     *
+     * @return {Object} the two pane rectangles and the seam, in css pixels
+     */
     this.render = function (cueBall, angle) {
         var w = canvas.clientWidth, h = canvas.clientHeight;
         if (self._w !== w || self._h !== h) {
@@ -465,45 +462,75 @@ function Renderer(canvas, world) {
 
         aimPov(cueBall, angle);
 
-        var insetW = Math.min(Math.max(150, Math.round(w * 0.32)), 340);
-        var insetH = Math.round(insetW * 0.62);
-        if (insetH > h * 0.3) {          // a phone held sideways has little height to give
-            insetH = Math.round(h * 0.3);
-            insetW = Math.round(insetH / 0.62);
-        }
-        var pad = Math.round(Math.min(w, h) * 0.025);
-        var insetY = insetEdge === 'top'
-            ? Math.max(pad, insetOffset)
-            : Math.max(pad, h - insetH - pad - insetOffset);
-        var inset = {x: w - insetW - pad, y: insetY, w: insetW, h: insetH};
-        if (insetPos) {
-            inset.x = Math.max(0, Math.min(insetPos.x, w - insetW));
-            inset.y = Math.max(0, Math.min(insetPos.y, h - insetH));
-        }
-        var main = {x: 0, y: 0, w: w, h: h};
+        // The panes tile whatever the panels have left, so neither view ends up
+        // underneath the controls, and they divide it along its longer side: a
+        // landscape window gives two panes side by side, a tall one stacks them.
+        // A table is half as tall as it is wide, and squeezing it into a wide,
+        // short strip wastes most of the room.
+        var top = Math.min(region.top, h * 0.4);
+        var bottom = Math.min(region.bottom, h * 0.4);
+        var freeH = Math.max(120, h - top - bottom);
+        var sideBySide = w >= freeH;
 
-        var mainCam = swapped ? povCamera : topCamera;
-        var insetCam = swapped ? topCamera : povCamera;
+        var half = SPLIT_GAP / 2, upper, lower;
+        if (sideBySide) {
+            var cutX = Math.round(w * splitRatio);
+            upper = {x: 0, y: top, w: Math.max(40, cutX - half), h: freeH};
+            lower = {x: cutX + half, y: top, w: Math.max(40, w - cutX - half), h: freeH};
+        } else {
+            var cutY = top + Math.round(freeH * splitRatio);
+            upper = {x: 0, y: top, w: w, h: Math.max(40, cutY - half - top)};
+            lower = {x: 0, y: cutY + half, w: w, h: Math.max(40, h - bottom - cutY - half)};
+        }
+
+        var upperCam = swapped ? povCamera : topCamera;
+        var lowerCam = swapped ? topCamera : povCamera;
+
+        // clear the whole canvas first: the seam is never drawn into, and
+        // scissored passes would leave last frame's pixels lying in it
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, w, h);
+        renderer.clear();
 
         renderer.setScissorTest(true);
-
-        // main view
-        if (mainCam === topCamera) fitTopCamera(main.w, main.h);
-        else { povCamera.aspect = main.w / main.h; povCamera.updateProjectionMatrix(); }
-        drawView(mainCam, main, h);
-
-        // inset
-        if (insetCam === topCamera) fitTopCamera(inset.w, inset.h);
-        else { povCamera.aspect = inset.w / inset.h; povCamera.updateProjectionMatrix(); }
-        drawView(insetCam, inset, h);
-
+        drawPane(upperCam, upper, h);
+        drawPane(lowerCam, lower, h);
         renderer.setScissorTest(false);
 
         return {
-            table: swapped ? inset : main,
-            pov: swapped ? main : inset,
+            table: swapped ? lower : upper,
+            pov: swapped ? upper : lower,
+            seam: sideBySide
+                ? {x: upper.w, y: top, w: SPLIT_GAP, h: freeH, vertical: true}
+                : {x: 0, y: top + upper.h, w: w, h: SPLIT_GAP, vertical: false},
             width: w, height: h
         };
+    };
+
+    function drawPane(camera, rect, canvasHeight) {
+        if (camera === topCamera) {
+            fitTopCamera(rect.w, rect.h);
+        } else {
+            povCamera.aspect = rect.w / rect.h;
+            povCamera.updateProjectionMatrix();
+        }
+        drawView(camera, rect, canvasHeight);
+    }
+
+    /** Bands along the top and bottom that the page's own panels are sitting on. */
+    this.setPaneRegion = function (top, bottom) {
+        region.top = top || 0;
+        region.bottom = bottom || 0;
+    };
+
+    /** How much of the free height the upper pane gets, 0.2 to 0.8. */
+    this.setSplit = function (ratio) {
+        splitRatio = Math.max(0.2, Math.min(0.8, ratio));
+        return splitRatio;
+    };
+
+    this.getSplit = function () {
+        return splitRatio;
     };
 
     function drawView(camera, rect, canvasHeight) {

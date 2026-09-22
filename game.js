@@ -31,7 +31,7 @@
         message: 'Break them up: place the cue ball behind the line and fire.',
         pocketed: [],
         ghost: null,                // cue ball position while placing it
-        insetPos: null              // where the inset was dragged to, if anywhere
+        split: 0.62                 // how much of the screen the upper view gets
     };
 
     var shot = null;
@@ -323,11 +323,11 @@
     var dragging = false;
     var chargePointer = null;     // which pointer started the charge, if any
 
-    /** True if the pointer is over the small inset view rather than the table. */
+    /** True if the pointer is over the cue ball's pane rather than the table's. */
     function insetHit(e) {
         if (!rects) return false;
         var box = document.getElementById('scene').getBoundingClientRect();
-        var r = view.isSwapped() ? rects.table : rects.pov;
+        var r = rects.pov;
         var x = e.clientX - box.left, y = e.clientY - box.top;
         return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
     }
@@ -641,55 +641,61 @@
     }
 
     /**
-     * Keep the inset view clear of the panels: below the buttons on a touch
-     * layout, where the controls own the bottom of the screen, and above the
-     * controls otherwise.
+     * Give the two views the part of the screen the panels have left. Only a
+     * panel parked against the top or bottom edge and wide enough to matter
+     * costs them anything; a narrow one, or one dragged into the middle, simply
+     * floats over a view - which is what moving it there asked for.
      */
-    /**
-     * Reserve table space only for panels still parked against an edge and wide
-     * enough to matter. Drag one into the middle of the screen and it simply
-     * floats over the cloth - that was the point of moving it.
-     */
-    function dockedInsets() {
-        var insets = {top: 0, bottom: 0, left: 0, right: 0};
-        var w = window.innerWidth, h = window.innerHeight;
+    function paneRegion() {
+        var h = window.innerHeight, w = window.innerWidth;
+        var top = 0, bottom = 0;
 
         ['status', 'buttons', 'controls'].forEach(function (id) {
             var r = document.getElementById(id).getBoundingClientRect();
-            if (r.width < w * 0.6) return;                 // narrow panels just overlay
-            if (h - r.bottom < 40) insets.bottom = Math.max(insets.bottom, h - r.top + 10);
-            else if (r.top < 40) insets.top = Math.max(insets.top, r.bottom + 10);
+            if (r.width < w * 0.35) return;      // a small panel just floats over a view
+            if (h - r.bottom < 40) bottom = Math.max(bottom, h - r.top + 8);
+            else if (r.top < 40) top = Math.max(top, r.bottom + 8);
         });
-        return insets;
+        return {top: top, bottom: bottom};
     }
 
     function placeInset() {
-        if (state.insetPos) {
-            view.setInsetPosition(state.insetPos.x, state.insetPos.y);
-        } else {
-            view.setInsetPosition(null);
-            if (document.body.classList.contains('touch')) {
-                var bar = document.getElementById('buttons').getBoundingClientRect();
-                view.setInsetPlacement('top', bar.bottom + 10);
-            } else {
-                var controls = document.getElementById('controls').getBoundingClientRect();
-                view.setInsetPlacement('bottom', window.innerWidth < 900
-                    ? Math.max(0, window.innerHeight - controls.top) + 10 : 0);
-            }
-        }
-        view.setTableInsets(dockedInsets());
+        var free = paneRegion();
+        view.setSplit(state.split);
+        view.setPaneRegion(free.top, free.bottom);
+        view.setTableInsets({});
     }
 
+    /** Label each pane, and park the seam handle between them. */
     function positionInsetFrame() {
         if (!rects) return;
-        var frame = document.getElementById('insetframe');
-        var r = view.isSwapped() ? rects.table : rects.pov;
-        frame.style.left = r.x + 'px';
-        frame.style.top = r.y + 'px';
-        frame.style.width = r.w + 'px';
-        frame.style.height = r.h + 'px';
-        document.getElementById('insetlabel').textContent =
-            view.isSwapped() ? 'TABLE' : 'CUE BALL POV';
+
+        var upper = view.isSwapped() ? rects.pov : rects.table;
+        var lower = view.isSwapped() ? rects.table : rects.pov;
+
+        // bottom left of each pane: the top corners belong to the panels
+        function caption(el, pane, text) {
+            el.style.left = pane.x + 'px';
+            el.style.top = (pane.y + pane.h - 22) + 'px';
+            el.textContent = text;
+        }
+        caption(document.getElementById('capupper'), upper,
+            view.isSwapped() ? 'CUE BALL' : 'TABLE');
+        caption(document.getElementById('caplower'), lower,
+            view.isSwapped() ? 'TABLE' : 'CUE BALL');
+
+        var seam = document.getElementById('seam');
+        var s = rects.seam;
+        seam.classList.toggle('vertical', !!s.vertical);
+        if (s.vertical) {
+            seam.style.left = (s.x + s.w / 2) + 'px';
+            seam.style.top = s.y + 'px';
+            seam.style.height = s.h + 'px';
+        } else {
+            seam.style.left = '0px';
+            seam.style.top = (s.y + s.h / 2) + 'px';
+            seam.style.height = '';
+        }
     }
 
     /* ------------------------------------------------------------------ *
@@ -798,14 +804,50 @@
         Panels.register(document.getElementById('status'), 'status');
         Panels.register(document.getElementById('buttons'), 'buttons');
         Panels.register(document.getElementById('controls'), 'controls');
-        Panels.register(document.getElementById('insetframe'), 'inset', {
-            onMove: function (x, y) {
-                var box = document.getElementById('scene').getBoundingClientRect();
-                state.insetPos = {x: x - box.left, y: y - box.top};
-            },
-            onReset: function () { state.insetPos = null; },
-            onTap: function () { view.swapViews(); }    // a tap still brings it up front
+    }
+
+    /** Drag the seam between the two views to give one of them more room. */
+    function initSeam() {
+        var seam = document.getElementById('seam');
+        var dragging = false;
+
+        seam.addEventListener('pointerdown', function (e) {
+            dragging = true;
+            seam.classList.add('dragging');
+            try { seam.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+            e.preventDefault();
+            e.stopPropagation();
         });
+
+        seam.addEventListener('pointermove', function (e) {
+            if (!dragging || !rects) return;
+            var box = document.getElementById('scene').getBoundingClientRect();
+            setSplit(rects.seam.vertical
+                ? (e.clientX - box.left) / Math.max(1, box.width)
+                : (e.clientY - box.top) / Math.max(1, box.height));
+            e.preventDefault();
+        });
+
+        function done() {
+            if (!dragging) return;
+            dragging = false;
+            seam.classList.remove('dragging');
+            try {
+                window.localStorage.setItem('billiards.split', String(state.split));
+            } catch (err) { /* nothing worth failing over */ }
+        }
+        seam.addEventListener('pointerup', done);
+        seam.addEventListener('pointercancel', done);
+        seam.addEventListener('lostpointercapture', done);
+
+        try {
+            var saved = parseFloat(window.localStorage.getItem('billiards.split'));
+            if (saved) setSplit(saved);
+        } catch (err) { /* first time here */ }
+    }
+
+    function setSplit(ratio) {
+        state.split = view.setSplit(ratio);
     }
 
     /** A touch anywhere means thumbs, not a mouse: show the bigger controls. */
@@ -822,6 +864,7 @@
 
         newGame();
         initPanels();
+        initSeam();
 
         var canvas = document.getElementById('scene');
         canvas.addEventListener('pointerdown', onPointerDown);
@@ -898,6 +941,7 @@
             return true;
         },
         elevate: function (deg) { setElevation(deg); return state.elevation; },
+        views: function () { return rects; },      // the two pane rectangles
         slowMotion: function (scale) {
             state.timeScale = Phys.clamp(scale, 0.05, 1);
             return state.timeScale;
