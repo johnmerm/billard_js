@@ -854,16 +854,47 @@
      * and what usually fixes it rather than leaving a blank window.
      */
     function noWebGL(err) {
+        var has = function (kind) {
+            try {
+                return !!document.createElement('canvas').getContext(kind);
+            } catch (e) {
+                return false;
+            }
+        };
+        var webgl2 = has('webgl2');
+        var webgl1 = has('webgl') || has('experimental-webgl');
+
+        var why;
+        if (webgl1 && !webgl2) {
+            // three.js has been WebGL 2 only since r163, and this page used to
+            // run on a much older build that was happy with WebGL 1
+            why = '<b>This browser has WebGL 1 but not WebGL 2</b>, and the three.js ' +
+                'build here needs WebGL 2.<br><br>Try <b>chrome://flags</b> and look for ' +
+                'WebGL 2, or check <b>chrome://gpu</b> to see what is holding it back. ' +
+                'If it cannot be turned on, say so and the game can ship a build that ' +
+                'runs on WebGL 1.';
+        } else if (!webgl1 && !webgl2) {
+            why = '<b>This browser could not start WebGL at all</b>, so the table cannot ' +
+                'be drawn.<br><br>It is usually switched off rather than missing: look at ' +
+                '<b>chrome://gpu</b>, turn on <i>use hardware acceleration when available</i> ' +
+                'in the browser\u2019s settings and restart it, or try another browser.';
+        } else {
+            why = '<b>WebGL started but the renderer would not.</b> The browser\u2019s own ' +
+                'reason is below; a restart of the browser clears most of these.';
+        }
+
         var banner = document.createElement('div');
         banner.id = 'stale';
-        banner.innerHTML =
-            '<b>This browser could not start WebGL</b>, so the table cannot be drawn.<br><br>' +
-            'It is usually turned off rather than missing: look at <b>chrome://gpu</b>, ' +
-            'switch on <i>use hardware acceleration when available</i> in the browser\u2019s ' +
-            'settings, or try another browser.<br><br>' +
-            '<span style="opacity:0.7">' + (err && err.message ? err.message : err) + '</span>';
+        banner.innerHTML = why +
+            '<br><br><span style="opacity:0.65;font-size:12px">webgl2: ' + webgl2 +
+            ' &middot; webgl1: ' + webgl1 + '<br>' +
+            (err && err.message ? err.message : err) + '</span>';
         document.body.appendChild(banner);
-        if (window.console) window.console.error('billiards: no WebGL context', err);
+
+        if (window.console) {
+            window.console.error('billiards: no renderer. webgl2=' + webgl2 +
+                ' webgl1=' + webgl1, err);
+        }
     }
 
     /**
