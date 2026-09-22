@@ -98,18 +98,34 @@ and it follows through.
 - **Cushions are boxes** built from a list of segments that stop short of each
   pocket and are cut back at 45 degrees. The renderer builds the visible rubber
   from the same list, so what you see is what you hit, jaws included.
-- **Rolling resistance is added by hand**, in a `preStep` hook. It is the one
-  thing a general purpose engine has no reason to model: contact friction alone
-  will not stop a rolling ball, so the cloth applies a small constant drag and
-  holds anything that has all but stopped.
+- **The cloth is modelled here, not by the solver.** cannon's friction turns a
+  sliding ball into a rolling one in about eight milliseconds where the real
+  thing takes the best part of a second, and it barely responds to the friction
+  coefficient at all. That transition *is* draw and follow: a ball struck low
+  has to hold its backspin long enough to reach the object ball. So the cloth
+  contact is frictionless as far as cannon is concerned, and the patch where
+  ball meets cloth is worked out in a `preStep` hook — kinetic friction against
+  the slipping patch while it slides, rolling resistance once it rolls. A heavy
+  draw shot now slides for 0.91 s and settles to 0.71 m/s, which is what the
+  textbook says it should.
+- **The cloth lets go during a collision.** A ball on ball hit is over in a
+  fraction of a millisecond, far too little time for the cloth to matter, but
+  the solver resolves it in one step with an enormous normal force and the
+  friction rides along with it. That scrubbed the cue ball's spin off at exactly
+  the moment it mattered, and handed it to the object ball, which came out of
+  the collision already rolling.
+- **The balls are given a sphere's inertia.** cannon works it out from a body's
+  bounding box, which for a sphere is the box around it: 2/3 m r², the figure
+  for a hollow shell, two thirds again too hard to turn. Every bit of spin came
+  out at 60% strength until this was set explicitly.
 - **Sleeping is off.** cannon leaves sleeping bodies out of the solver, so a ball
   that had dozed off swallowed part of the impulse when it was hit. The rest
-  clamp above does that job instead.
-- **Contacts between balls are stiff and barely relaxed.** The defaults are
-  tuned for boxes settling into stacks and soak up an impact between two balls.
-  Ball on ball friction is kept low for the same reason: at this scale cannon's
-  friction impulse is generous, and anything higher spins the object ball up at
-  the expense of the speed it should leave with.
+  clamp in the cloth pass does that job instead, and it only holds a ball that
+  has no spin left to act on — a cue ball stopped dead with topspin on it is not
+  at rest, it is about to follow through.
+- **Ball on ball friction is kept low.** At this scale cannon's friction impulse
+  is generous, and anything higher spins the object ball up at the expense of
+  the speed it should be leaving with.
 - **Fixed 1/480 s steps**, with cannon sub-stepping to catch up. A hard break
   moves a ball about 8 m/s, or 17 mm a step, comfortably less than a ball
   radius, so nothing tunnels through the rack.

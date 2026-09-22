@@ -71,6 +71,15 @@
         body.addShape(new CANNON.Sphere(BALL_RADIUS));
         body.linearDamping = 0;
         body.angularDamping = 0;
+
+        // cannon works the inertia out from a body's bounding box, which for a
+        // sphere is the box around it: 2/3 m r^2, the figure for a hollow shell,
+        // two thirds again too heavy to turn. Every bit of spin the tip puts on
+        // the ball would come out at 60% strength, so set the real sphere value.
+        var inertia = 0.4 * BALL_MASS * BALL_RADIUS * BALL_RADIUS;
+        body.inertia.set(inertia, inertia, inertia);
+        body.invInertia.set(1 / inertia, 1 / inertia, 1 / inertia);
+        body.updateInertiaWorld(true);
         // No sleeping: cannon leaves sleeping bodies out of the solver, so a
         // resting ball would swallow part of the impulse when it got hit. The
         // cloth pass below is what actually brings balls to a stop.
@@ -106,7 +115,9 @@
     Phys.Ball.prototype.moving = function () {
         if (!this.active) return false;
         if (this.body.position.y < this.radius * 0.7) return true;   // dropping into a pocket
-        return this.speed() > REST_SPEED;
+        // a ball turning on the spot is going nowhere: it does not hold up play
+        return this.speed() > REST_SPEED ||
+            Math.abs(this.body.angularVelocity.x) + Math.abs(this.body.angularVelocity.z) > 1.0;
     };
 
     Phys.Ball.prototype.stop = function () {
@@ -147,6 +158,7 @@
         this.cushions = [];       // table coordinate segments, also drawn by the renderer
         this.events = [];
 
+        this.slidingFriction = opts.slidingFriction !== undefined ? opts.slidingFriction : 0.2;
         this.rollingFriction = opts.rollingFriction !== undefined ? opts.rollingFriction : 0.012;
         this.spinFriction = opts.spinFriction !== undefined ? opts.spinFriction : 0.6;
 
@@ -158,10 +170,13 @@
         world.allowSleep = false;
         this.cannon = world;
 
-        world.addContactMaterial(new CANNON.ContactMaterial(ballMaterial, clothMaterial, {
-            friction: opts.clothFriction !== undefined ? opts.clothFriction : 0.2,
+        // The cloth is handled in `cloth()` below rather than by the solver, so
+        // the contact itself is frictionless as far as cannon is concerned.
+        this.clothContact = new CANNON.ContactMaterial(ballMaterial, clothMaterial, {
+            friction: 0,
             restitution: 0.05
-        }));
+        });
+        world.addContactMaterial(this.clothContact);
         // Stiff, barely relaxed contacts: the defaults are tuned for boxes
         // settling into stacks, and they soak up an impact between two balls.
         // Ball on ball friction is kept low on purpose: cannon's friction
@@ -282,36 +297,107 @@
      * What the cloth does between solver steps: bleed off rolling balls, damp
      * spin about the vertical axis, and hold anything that has all but stopped.
      */
+    /**
+     * The cloth, worked out here rather than left to the solver.
+     *
+     * cannon's friction turns a sliding ball into a rolling one almost the
+     * instant it lands - eight milliseconds where the real thing takes the best
+     * part of a second - and it barely responds to the friction coefficient at
+     * all. That transition is the whole of draw and follow: a ball struck low
+     * has to keep its backspin long enough to reach the object ball, or draw
+     * does not exist. So the contact material is frictionless and the patch
+     * where ball meets cloth is modelled directly.
+     *
+     * The velocity of that patch decides everything. While it is slipping,
+     * kinetic friction slows the ball and spins it towards rolling; once it
+     * rolls, only the much smaller rolling resistance is left.
+     */
     Table.prototype.cloth = function () {
-        var drop = this.rollingFriction * G * FIXED_STEP;
-        var spin = Math.pow(1 - this.spinFriction, FIXED_STEP);
+        var h = FIXED_STEP;
+        var slide = this.slidingFriction * G;        // how hard the cloth bites
+        var drop = this.rollingFriction * G * h;     // and what it costs to roll
+        var spinDecay = Math.pow(1 - this.spinFriction, h);
+
+        // A ball on ball hit is over in a fraction of a millisecond; the cloth
+        // cannot do anything in that time, and letting it try would scrub off
+        // the spin the cue ball is supposed to carry through the collision.
+        if (this.impacting()) return;
 
         for (var i = 0; i < this.balls.length; i++) {
             var ball = this.balls[i];
             if (!ball.active) continue;
 
-            var body = ball.body;
-            if (body.position.y > ball.radius * 1.4) continue;   // airborne or falling
+            var body = ball.body, r = ball.radius;
+            if (body.position.y > r * 1.4) continue;      // airborne or dropping in
 
-            var v = body.velocity;
-            var speed = Math.sqrt(v.x * v.x + v.z * v.z);
+            var v = body.velocity, w = body.angularVelocity;
 
-            if (speed < REST_SPEED) {
-                // stop it dead, spin included: leaving spin behind would let the
-                // cloth friction push the ball off again
-                v.x = v.z = 0;
-                body.angularVelocity.set(0, 0, 0);
-                continue;
-            }
+            // the patch is at the bottom of the ball: u = v + w x (0, -r, 0)
+            var ux = v.x + w.z * r;
+            var uz = v.z - w.x * r;
+            var slip = Math.sqrt(ux * ux + uz * uz);
 
-            if (drop < speed) {
-                v.x -= drop * v.x / speed;
-                v.z -= drop * v.z / speed;
+            // Friction kills the slip at 7/2 mu g - half from slowing the ball,
+            // the rest from spinning it up. Once a step would wipe it out, snap
+            // to rolling rather than overshoot into a wobble.
+            if (slip > 3.5 * slide * h) {
+                var nx = ux / slip, nz = uz / slip;
+
+                v.x -= slide * nx * h;
+                v.z -= slide * nz * h;
+
+                var alpha = 2.5 * slide / r;
+                w.x += alpha * nz * h;
+                w.z -= alpha * nx * h;
             } else {
-                v.x = v.z = 0;
+                var speed = Math.sqrt(v.x * v.x + v.z * v.z);
+                if (speed > drop) {
+                    v.x -= drop * v.x / speed;
+                    v.z -= drop * v.z / speed;
+                } else {
+                    v.x = v.z = 0;
+                }
+                // hold it exactly on the rolling condition
+                w.x = v.z / r;
+                w.z = -v.x / r;
             }
-            body.angularVelocity.y *= spin;
+
+            // spin about the vertical axis just bleeds away against the cloth
+            w.y *= spinDecay;
+
+            // A ball that has stopped dead but is still spinning is not at rest:
+            // that is a cue ball the instant after a full ball hit, and the spin
+            // it holds is what makes it follow through or draw back.
+            // Only spin about a horizontal axis can set the ball moving again;
+            // spin about the vertical just turns on the spot, so it is left to
+            // die down on its own rather than holding up the shot.
+            var still = Math.sqrt(v.x * v.x + v.z * v.z);
+            if (still < REST_SPEED && Math.abs(w.x) + Math.abs(w.z) < 1.0) {
+                v.x = v.z = 0;
+                w.x = w.z = 0;
+            }
         }
+    };
+
+    /** Are any two balls in contact right now? */
+    Table.prototype.impacting = function () {
+        var balls = this.balls;
+        var reach = 2 * this.radius + 0.0015;      // plus a step's worth of approach
+        var reach2 = reach * reach;
+
+        for (var i = 0; i < balls.length; i++) {
+            var a = balls[i];
+            if (!a.active) continue;
+            var ap = a.body.position;
+            for (var j = i + 1; j < balls.length; j++) {
+                var b = balls[j];
+                if (!b.active) continue;
+                var bp = b.body.position;
+                var dx = bp.x - ap.x, dy = bp.y - ap.y, dz = bp.z - ap.z;
+                if (dx * dx + dy * dy + dz * dz < reach2) return true;
+            }
+        }
+        return false;
     };
 
     /* ----------------------------- balls ------------------------------ */

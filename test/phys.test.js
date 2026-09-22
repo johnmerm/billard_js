@@ -110,6 +110,76 @@ console.log('spin');
     check('side english throws the ball off line', spun > straight + 0.01, spun.toFixed(4));
 })();
 
+console.log('the cloth, which is where draw and follow live');
+
+(function () {
+    // A ball struck low slides with backspin for the best part of a second
+    // before it rolls. If that transition is rushed, draw stops working.
+    var w = table();
+    var b = w.add(new Phys.Ball(0, 0.35, 0.56));
+    w.strike(b, 1, 0, 2.5, 0, -0.6);
+
+    var t = 0, rolled = -1;
+    while (t < 3 && b.x < 2.0) {
+        w.step(1 / 480);
+        t += 1 / 480;
+        var slip = b.body.velocity.x + b.body.angularVelocity.z * b.radius;
+        if (rolled < 0 && Math.abs(slip) < 0.02) rolled = t;
+    }
+    check('a sliding ball takes about a second to start rolling',
+        rolled > 0.5 && rolled < 1.4, rolled.toFixed(2) + 's');
+})();
+
+(function () {
+    // close enough that the spin has not yet turned into rolling
+    function cueAfter(vert) {
+        var w = table();
+        var cue = w.add(new Phys.Ball(0, 0.75, 0.56));
+        var obj = w.add(new Phys.Ball(1, 1.0, 0.56));
+        w.strike(cue, 1, 0, 2.5, 0, vert);
+
+        var t = 0, hit = 0, at = 0;
+        while (t < 3) {
+            w.step(1 / 480);
+            t += 1 / 480;
+            if (!hit && obj.speed() > 0.01) { hit = t; at = cue.x; }
+            if (hit && t - hit > 0.5) break;
+        }
+        return cue.x - at;
+    }
+
+    var draw = cueAfter(-0.6), stun = cueAfter(0), follow = cueAfter(0.6);
+    check('draw brings the cue ball back off the object ball', draw < -0.1,
+        (draw * 100).toFixed(1) + ' cm');
+    check('follow sends it through', follow > 0.1, (follow * 100).toFixed(1) + ' cm');
+    check('and a centre ball hit does neither', Math.abs(stun) < 0.1,
+        (stun * 100).toFixed(1) + ' cm');
+})();
+
+(function () {
+    // a near frictionless contact cannot hand over spin: the object ball should
+    // leave a full ball hit barely turning at all
+    var w = table();
+    var cue = w.add(new Phys.Ball(0, 0.5, 0.56));
+    var obj = w.add(new Phys.Ball(1, 1.0, 0.56));
+    w.strike(cue, 1, 0, 2.5, 0, 0.55);
+
+    var t = 0, cueSpinIn = 0, cueSpinOut = null, objSpin = null;
+    while (t < 2) {
+        if (objSpin === null) cueSpinIn = -cue.body.angularVelocity.z;
+        w.step(1 / 480);
+        t += 1 / 480;
+        if (objSpin === null && obj.speed() > 0.01) {
+            objSpin = -obj.body.angularVelocity.z;
+            cueSpinOut = -cue.body.angularVelocity.z;
+        }
+    }
+    check('the cue ball carries its spin through the collision',
+        cueSpinOut > 0.8 * cueSpinIn, cueSpinIn.toFixed(0) + ' -> ' + cueSpinOut.toFixed(0) + ' rad/s');
+    check('and the object ball leaves it hardly spinning',
+        Math.abs(objSpin) < 0.15 * cueSpinIn, objSpin.toFixed(0) + ' rad/s');
+})();
+
 console.log('pocketing');
 
 (function () {
