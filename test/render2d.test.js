@@ -110,10 +110,25 @@ var rects = view.render(world.ball(0), 0);
 check('the table pane clears the bands the panels sit in',
     rects.table.y === 90 && rects.table.h === 800 - 90 - 110,
     JSON.stringify(rects.table));
-check('the pane is the full width', rects.table.x === 0 && rects.table.w === 1200);
-check('there is no second pane to tap', rects.pov.w === 0 && rects.pov.h === 0);
-check('there is no seam to drag', rects.seam.w === 0 && rects.seam.h === 0);
-check('swapping views does nothing', view.swapViews() === false && view.isSwapped() === false);
+check('a landscape window puts the two panes side by side',
+    rects.pov.w > 0 && rects.table.y === rects.pov.y && rects.table.x < rects.pov.x &&
+    rects.seam.vertical === true,
+    JSON.stringify(rects));
+check('the panes do not overlap',
+    rects.table.x + rects.table.w <= rects.pov.x &&
+    rects.table.x + rects.table.w + rects.seam.w <= rects.pov.x + 1);
+check('the seam sits in the gap between them',
+    rects.seam.x >= rects.table.x + rects.table.w &&
+    rects.seam.x + rects.seam.w <= rects.pov.x + 1);
+check('swapping puts the table in the other pane', (function () {
+    var before = rects.table.x;
+    view.swapViews();
+    var after = view.render(world.ball(0), 0);
+    var moved = after.table.x !== before && after.pov.x === before;
+    view.swapViews();
+    rects = view.render(world.ball(0), 0);      // back the way it was
+    return moved && view.isSwapped() === false;
+})());
 check('the backing store follows the device pixel ratio',
     canvas.width === 1200 && canvas.height === 800);
 
@@ -245,10 +260,69 @@ draws('nothing to aim at draws', function () {
     v2.setAim({ball: w2.ball(0), angle: 1.2, power: 0.2, side: 0, vert: 0, elevation: 0});
 });
 
+console.log('the cue ball pane');
+
+/**
+ * Each pane clips to its own rectangle, so the calls after the second `clip`
+ * are the cue ball view's. That is enough to tell whether the guides reached
+ * it: an open line whose far end went missing drew nothing at all.
+ */
+function povCalls(v, prepare) {
+    var cv = stubCanvas(1000, 700);
+    var r = new Renderer2D(cv, v);
+    r.setPaneRegion(0, 0);
+    prepare(r);
+    cv.ctx.calls.length = 0;
+    r.render(v.ball(0), 0.4);
+
+    var clips = 0, from = -1;
+    cv.ctx.calls.forEach(function (name, i) {
+        if (name === 'clip' && ++clips === 2) from = i;
+    });
+    if (from < 0) return null;
+    return cv.ctx.calls.slice(from).filter(function (name) {
+        return name === 'lineTo';
+    }).length;
+}
+
+var w3 = table();
+var quiet = povCalls(w3, function (r) { r.setAim(null); });
+var aimed = povCalls(w3, function (r) {
+    r.setAim({ball: w3.ball(0), angle: 0.4, power: 0.5, side: 0, vert: 0, elevation: 0});
+});
+
+// a raised cue is aiming over whatever is in the way, so the contact ring goes
+// and the aim line is the only thing left - which is what isolates it
+var jumping = povCalls(w3, function (r) {
+    r.setAim({ball: w3.ball(0), angle: 0.4, power: 1, side: 0, vert: 0,
+        elevation: 45 * Math.PI / 180});
+});
+
+check('the cue ball view is drawn at all', quiet !== null && quiet > 0, String(quiet));
+check('the aim line reaches the cue ball view', jumping > quiet,
+    'without an aim ' + quiet + ', with one ' + jumping);
+check('so does the contact ring, and a jump shot drops it',
+    aimed > jumping, 'jumping ' + jumping + ', level ' + aimed);
+
 console.log('the split the page remembers');
 
 check('a split is clamped and handed back', v2.setSplit(0.95) === 0.8 &&
     v2.setSplit(0.05) === 0.2 && v2.setSplit(0.5) === 0.5 && v2.getSplit() === 0.5);
+
+check('the split decides how much of the window the table pane gets', (function () {
+    var wide = new Renderer2D(stubCanvas(1200, 800), world);
+    wide.setSplit(0.3);
+    var narrow = wide.render(world.ball(0), 0).table.w;
+    wide.setSplit(0.7);
+    return wide.render(world.ball(0), 0).table.w > narrow;
+})());
+
+check('a tall window stacks the panes instead', (function () {
+    var r = new Renderer2D(stubCanvas(420, 900), world).render(world.ball(0), 0);
+    return r.table.x === r.pov.x && r.table.y < r.pov.y &&
+        r.seam.vertical === false &&
+        r.table.y + r.table.h <= r.pov.y;
+})());
 
 /* ------------------------------------------------------------------ */
 

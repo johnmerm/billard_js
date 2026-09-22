@@ -47,7 +47,7 @@ with a keyboard.
 | the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
 | the cue ball pane | tap it to swap the two views |
 | the seam between the views | drag it to give one of them more room |
-| the top right buttons | swap views, sound, new rack |
+| the top right buttons | swap views, sound, dock panels, new rack |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 | ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |
 
@@ -59,8 +59,10 @@ charge and release to shoot, **space** to charge, **←** **→** to fine aim
 The panels sit in their own bands rather than on top of the table, so nothing
 covers a shot. Drag one out by its grip and it floats free — and since it is no
 longer taking up a band, the views grow into the space it left. A double tap on
-a grip puts that panel back, **L** puts them all back, and where you left them
-is remembered between sessions.
+a grip puts that panel back, **Dock panels** or **L** puts them all back, and
+where you left them is remembered between sessions — so a panel left floating in
+an earlier session is still floating when you come back, and the button is how
+you get the bands again.
 
 On a touch screen dragging only ever aims — the shot needs the SHOOT button —
 so you can slide a finger around the table without firing the cue ball across
@@ -94,12 +96,20 @@ you up with it.
 Some browsers will not start WebGL: hardware acceleration is switched off, the
 driver is blocklisted, or the browser has stopped quietly falling back to
 software WebGL the way Chrome used to. Rather than a blank window, the game
-drops to `render2d.js` and draws the table flat on an ordinary 2d canvas —
-coloured discs on green cloth, with the cue, the aiming guides, the ghost ball,
-the shadows that give a jumping ball away and the ball in hand marker all still
-there. The physics, the rules and every control are exactly the same; the cue
-ball's point of view is the one thing that goes, since it needs a perspective
-camera, so the page drops to a single pane and says so once in a banner.
+drops to `render2d.js`, which draws **both** views on an ordinary 2d canvas.
+
+The table view becomes a flat plan — coloured discs on green cloth, with the
+cue, the aiming guides, the ghost ball, the shadows that give a jumping ball
+away and the ball in hand marker all still there. The cue ball view is a pinhole
+camera written out by hand: points go into the camera's frame, get divided by
+their depth, and polygons are clipped against the near plane before they are
+filled, because a quad with a corner behind the camera turns inside out
+otherwise. The cloth, the rails and the balls are painted back to front, which
+is all the depth sorting a table needs — a ball never gets behind a cushion.
+
+So the panes, the seam, the captions and **V** all work exactly as they do with
+three.js. The physics, the rules and every control are untouched; only the
+picture is simpler, and the page says so once in a banner that closes itself.
 
 Nothing has to be configured for this. If WebGL comes back, so does the 3d
 table. To get it back in Chrome, turn on *use graphics acceleration when
@@ -112,7 +122,7 @@ holding it back.
 |---|---|
 | `phys.js` | the table: builds it out of cannon-es bodies, strikes the cue ball, reports what happened |
 | `render.js` | the three.js scene and the two cameras |
-| `render2d.js` | the flat table, for browsers that will not start WebGL |
+| `render2d.js` | both views on a plain 2d canvas, for browsers that will not start WebGL |
 | `game.js` | rules, input, HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |

@@ -6,15 +6,17 @@
  * has stopped falling back to software WebGL on its own. The physics, the rules
  * and every control are the same; only the picture is simpler.
  *
- * It draws the table from above and nothing else. The cue ball's point of view
- * needs a perspective camera and a room to look at, neither of which is worth
- * hand rolling here, so the page drops to a single pane and says so.
+ * Both views are here, in the same two panes render.js lays out. The table view
+ * is a flat plan: table coordinates mapped to css pixels by `sx`/`sy`, a mapping
+ * that only ever swaps and flips axes, so a table rectangle stays an axis
+ * aligned rectangle on screen whichever way round the table is standing.
  *
- * Coordinates: everything is worked out in the game's table coordinates (x
- * along the length, y across the width, both from a corner) and mapped to css
- * pixels by `sx`/`sy`. The mapping only ever swaps and flips axes, so a table
- * rectangle stays an axis aligned rectangle on screen whichever way round the
- * table is standing.
+ * The cue ball's view is a pinhole camera sitting in the white ball, written out
+ * by hand: `toCam` puts a point in the camera's frame, `project` divides by the
+ * depth, and `fillPoly3` clips a polygon against the near plane before filling
+ * it - without that a quad with a corner behind the camera turns inside out. The
+ * cloth, the rails and the balls are drawn back to front, which is all the depth
+ * sorting a table needs: the balls never get behind a cushion.
  */
 function Renderer2D(canvas, world) {
     'use strict';
@@ -36,7 +38,8 @@ function Renderer2D(canvas, world) {
     var aim = null;              // what setAim was last given
     var hand = null;             // what setInHand was last given
     var region = {top: 0, bottom: 0};
-    var splitRatio = 0.62;       // kept so the page's saved value survives
+    var splitRatio = 0.62;       // how much of the free space the upper pane gets
+    var swapped = false;         // false: table on top, cue ball view below
     var portrait = false;
 
     /* ------------------------- table to screen ------------------------ */
@@ -157,7 +160,6 @@ function Renderer2D(canvas, world) {
         if (!ball.active) return;
 
         var lift = Math.max(0, ball.height - R);
-        var px = sx(ball.x, ball.y), py = sy(ball.x, ball.y);
 
         // Straight down, height does not show at all, so a jumping ball would
         // slide over another one and look like a bug. Its shadow gives it away:
@@ -171,7 +173,14 @@ function Renderer2D(canvas, world) {
             ctx.restore();
         }
 
-        var r = R * scale * Math.min(1.5, 1 + lift * 2.5);   // higher reads as nearer
+        // higher reads as nearer, since the plan view has nothing else to say it
+        paintBall(ball, sx(ball.x, ball.y), sy(ball.x, ball.y),
+            R * scale * Math.min(1.5, 1 + lift * 2.5));
+    }
+
+    /** One ball as a disc, wherever a view has worked out it belongs. */
+    function paintBall(ball, px, py, r) {
+        if (r < 0.4) return;
         var striped = ball.id > 8;
 
         disc(px, py, r, striped ? '#f6f4ef' : BallSkins.color(ball.id));
@@ -356,10 +365,231 @@ function Renderer2D(canvas, world) {
         ctx.restore();
     }
 
-    /* ----------------------------- the page --------------------------- */
+    /* ------------------------ the cue ball's eye ---------------------- */
+
+    var FOV = 72 * Math.PI / 180;    // vertical, the same as the three.js camera
+    var NEAR = R * 0.25;
+    var RAIL_H = R * 1.35;           // cushion height above the cloth
+    var ROOM = '#252b34';            // the backdrop, so there is a horizon
+    var PITCH = 0.16;                // tipped down, so the cloth fills the frame
+
+    // the camera, rebuilt every frame: origin, the three axes it looks along,
+    // and how many pixels a unit at unit depth covers
+    var eye = {x: 0, y: 0, h: R};
+    var fwd = {x: 1, y: 0, h: 0}, rgt = {x: 0, y: -1, h: 0}, upv = {x: 0, y: 0, h: 1};
+    var focal = 1, povMid = {x: 0, y: 0};
+
+    function aimPov(cueBall, angle, rect) {
+        var moving = cueBall && cueBall.speed() > 0.05;
+        var ux = moving ? cueBall.vx : Math.cos(angle);
+        var uy = moving ? cueBall.vy : Math.sin(angle);
+        var len = Math.sqrt(ux * ux + uy * uy) || 1;
+        ux /= len; uy /= len;
+
+        // while the ball is in hand the view rides the marker instead: the ball
+        // itself is off the table until it is put down
+        eye.x = hand ? hand.x : cueBall.x;
+        eye.y = hand ? hand.y : cueBall.y;
+        eye.h = Math.max((hand ? R : cueBall.height) + R * 0.5, R * 1.2);
+
+        var cp = Math.cos(PITCH), sp = Math.sin(PITCH);
+        fwd.x = ux * cp; fwd.y = uy * cp; fwd.h = -sp;
+        rgt.x = uy; rgt.y = -ux; rgt.h = 0;       // table +y is to the left
+        upv.x = ux * sp; upv.y = uy * sp; upv.h = cp;
+
+        focal = (rect.h / 2) / Math.tan(FOV / 2);
+        povMid.x = rect.x + rect.w / 2;
+        povMid.y = rect.y + rect.h / 2;
+    }
+
+    /** A point on the cloth, in the camera's own frame. */
+    function toCam(x, y, h) {
+        var vx = x - eye.x, vy = y - eye.y, vh = h - eye.h;
+        return {
+            x: vx * rgt.x + vy * rgt.y + vh * rgt.h,
+            y: vx * upv.x + vy * upv.y + vh * upv.h,
+            z: vx * fwd.x + vy * fwd.y + vh * fwd.h
+        };
+    }
+
+    function project(c) {
+        return {x: povMid.x + focal * c.x / c.z, y: povMid.y - focal * c.y / c.z};
+    }
+
+    /** Where two camera space points cross the near plane. */
+    function atNear(p, q) {
+        var t = (NEAR - p.z) / (q.z - p.z);
+        return {x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t, z: NEAR};
+    }
+
+    /**
+     * Fill a polygon given as [x, y, height] table points. Anything behind the
+     * camera is cut off first: projecting a point with a negative depth flips it
+     * through the origin and turns the shape inside out.
+     */
+    function fillPoly3(pts, colour, alpha) {
+        var cam = pts.map(function (p) { return toCam(p[0], p[1], p[2]); });
+        var out = [];
+        for (var i = 0; i < cam.length; i++) {
+            var p = cam[i], q = cam[(i + 1) % cam.length];
+            if (p.z > NEAR) out.push(p);
+            if ((p.z > NEAR) !== (q.z > NEAR)) out.push(atNear(p, q));
+        }
+        if (out.length < 3) return;
+
+        ctx.save();
+        if (alpha !== undefined) ctx.globalAlpha = alpha;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        for (var j = 0; j < out.length; j++) {
+            var s = project(out[j]);
+            if (j) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    /** The same near clip along a line: `close` joins the last point to the first. */
+    function stroke3(pts, colour, width, alpha, close) {
+        var cam = pts.map(function (p) { return toCam(p[0], p[1], p[2]); });
+        var out = [];
+        var n = close ? cam.length : cam.length - 1;
+        for (var i = 0; i < n; i++) {
+            var p = cam[i], q = cam[(i + 1) % cam.length];
+            if (p.z > NEAR) out.push(p);
+            if ((p.z > NEAR) !== (q.z > NEAR)) out.push(atNear(p, q));
+        }
+        // the loop only ever pushes the start of each span, so an open line has
+        // to be given its far end - without it a two point line drew nothing
+        var end = cam[cam.length - 1];
+        if (!close && end.z > NEAR) out.push(end);
+        else if (close && out.length) out.push(out[0]);
+        if (out.length < 2) return;
+
+        ctx.save();
+        ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        for (var j = 0; j < out.length; j++) {
+            var s = project(out[j]);
+            if (j) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    /** A circle lying flat on the cloth, as a ring of table points. */
+    function ring(x, y, radius, height, steps) {
+        var pts = [];
+        for (var i = 0; i < steps; i++) {
+            var t = i / steps * Math.PI * 2;
+            pts.push([x + Math.cos(t) * radius, y + Math.sin(t) * radius, height]);
+        }
+        return pts;
+    }
+
+    /** The outward normal of a cushion segment, away from the playing surface. */
+    function outward(seg) {
+        var ang = Math.atan2(seg.y2 - seg.y1, seg.x2 - seg.x1);
+        var nx = Math.sin(ang), ny = -Math.cos(ang);
+        if (nx * (W / 2 - (seg.x1 + seg.x2) / 2) +
+            ny * (H / 2 - (seg.y1 + seg.y2) / 2) > 0) { nx = -nx; ny = -ny; }
+        return {x: nx, y: ny};
+    }
+
+    function depthOf(x, y, h) {
+        return toCam(x, y, h).z;
+    }
+
+    function drawPov(rect, cueBall, angle) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(rect.x, rect.y, rect.w, rect.h);
+        ctx.clip();
+
+        ctx.fillStyle = ROOM;                    // the room, and with it a horizon
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+        if (!cueBall) { ctx.restore(); return; }
+        aimPov(cueBall, angle, rect);
+
+        var out = CUSHION_D + FRAME;
+        fillPoly3([[-out, -out, 0], [W + out, -out, 0],
+            [W + out, H + out, 0], [-out, H + out, 0]], WOOD);
+        fillPoly3([[-CUSHION_D, -CUSHION_D, 0], [W + CUSHION_D, -CUSHION_D, 0],
+            [W + CUSHION_D, H + CUSHION_D, 0], [-CUSHION_D, H + CUSHION_D, 0]], CLOTH);
+
+        world.pockets.forEach(function (p) {
+            fillPoly3(ring(p.x, p.y, p.radius * 1.05, 0.002, 20), '#07090b');
+        });
+
+        stroke3([[W * 0.25, 0, 0.003], [W * 0.25, H, 0.003]],
+            '#bfd8c6', 1, 0.35);
+        fillPoly3(ring(W * 0.75, H / 2, R * 0.22, 0.003, 14), '#cfe4d5', 0.5);
+
+        drawPovAim();
+
+        // the rails, furthest first: the near ones stand in front of them
+        world.cushions.slice().sort(function (p, q) {
+            return depthOf((q.x1 + q.x2) / 2, (q.y1 + q.y2) / 2, RAIL_H) -
+                depthOf((p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, RAIL_H);
+        }).forEach(function (seg) {
+            var n = outward(seg);
+            var ox = n.x * CUSHION_D, oy = n.y * CUSHION_D;
+            // the face a ball hits, then the top the frame sits behind
+            fillPoly3([[seg.x1, seg.y1, 0], [seg.x2, seg.y2, 0],
+                [seg.x2, seg.y2, RAIL_H], [seg.x1, seg.y1, RAIL_H]], RUBBER);
+            fillPoly3([[seg.x1, seg.y1, RAIL_H], [seg.x2, seg.y2, RAIL_H],
+                [seg.x2 + ox, seg.y2 + oy, RAIL_H], [seg.x1 + ox, seg.y1 + oy, RAIL_H]],
+                '#0d5334');
+            fillPoly3([[seg.x1 + ox, seg.y1 + oy, RAIL_H], [seg.x2 + ox, seg.y2 + oy, RAIL_H],
+                [seg.x2 + ox * 3.1, seg.y2 + oy * 3.1, RAIL_H],
+                [seg.x1 + ox * 3.1, seg.y1 + oy * 3.1, RAIL_H]], '#6b3d26');
+        });
+
+        // the balls, furthest first. The cue ball is skipped: the camera is
+        // sitting inside it, so all it would draw is the inside of the shell.
+        world.balls.filter(function (b) {
+            return b.active && b.id !== 0 && b.height > -R;
+        }).map(function (b) {
+            return {ball: b, z: depthOf(b.x, b.y, b.height)};
+        }).filter(function (d) {
+            return d.z > NEAR;
+        }).sort(function (p, q) {
+            return q.z - p.z;
+        }).forEach(function (d) {
+            var s = project(toCam(d.ball.x, d.ball.y, d.ball.height));
+            paintBall(d.ball, s.x, s.y, R * focal / d.z);
+        });
+
+        ctx.restore();
+    }
+
+    /** The same guides the table view draws, lying on the cloth. */
+    function drawPovAim() {
+        if (!aim) return;
+
+        var ball = aim.ball;
+        var ux = Math.cos(aim.angle), uy = Math.sin(aim.angle);
+        var hit = world.firstContact(ball.x, ball.y, ux, uy, ball);
+        var range = hit ? hit.distance : 3.2;
+        var hx = ball.x + ux * range, hy = ball.y + uy * range;
+
+        stroke3([[ball.x + ux * R * 2.2, ball.y + uy * R * 2.2, R * 0.5],
+            [hx, hy, R * 0.5]], '#ffffff', 2, 0.85);
+
+        if ((aim.elevation || 0) > 0.17 || !hit) return;   // a jump clears it all
+        stroke3(ring(hx, hy, R, 0.004, 24), '#ffffff', 2, 0.5, true);
+    }
+
+    /* ----------------------------- the panes -------------------------- */
+
+    var SPLIT_GAP = 8;
 
     /** Pixels along each edge that the page's own panels are sitting on. */
-    this.setTableInsets = function () { /* the single pane already dodges them */ };
+    this.setTableInsets = function () { /* the panes already dodge the bands */ };
 
     /** Bands along the top and bottom that the page's own panels are sitting on. */
     this.setPaneRegion = function (top, bottom) {
@@ -367,16 +597,20 @@ function Renderer2D(canvas, world) {
         region.bottom = bottom || 0;
     };
 
+    /** How much of the free space the upper pane gets, 0.2 to 0.8. */
     this.setSplit = function (ratio) {
         splitRatio = Math.max(0.2, Math.min(0.8, ratio));
-        return splitRatio;      // there is only one pane, but the page saves it
+        return splitRatio;
     };
 
     this.getSplit = function () { return splitRatio; };
 
-    // there is no second view to swap with
-    this.swapViews = function () { return false; };
-    this.isSwapped = function () { return false; };
+    this.swapViews = function () {
+        swapped = !swapped;
+        return swapped;
+    };
+
+    this.isSwapped = function () { return swapped; };
 
     /** The balls are read straight out of the world at draw time. */
     this.syncBalls = function () { /* nothing to copy across */ };
@@ -384,10 +618,10 @@ function Renderer2D(canvas, world) {
     this.setAim = function (next) { aim = next || null; };
     this.setInHand = function (spot) { hand = spot || null; };
 
-    /** Tells the page this is the flat renderer, so it can drop the pov pane. */
+    /** Tells the page this is the flat renderer rather than the three.js one. */
     this.flat = true;
 
-    this.render = function () {
+    this.render = function (cueBall, angle) {
         var w = canvas.clientWidth, h = canvas.clientHeight;
         var dpr = window.devicePixelRatio || 1;
         if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -396,17 +630,50 @@ function Renderer2D(canvas, world) {
         }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        var top = Math.min(region.top, h * 0.45);
-        var bottom = Math.min(region.bottom, h * 0.45);
-        var pane = {x: 0, y: top, w: w, h: Math.max(120, h - top - bottom)};
-        fit(pane);
-
         ctx.fillStyle = BACK;
         ctx.fillRect(0, 0, w, h);
 
+        // The panes tile whatever the panels have left, and divide it along its
+        // longer side: a landscape window gives two panes side by side, a tall
+        // one stacks them. Same layout as render.js, so the page's seam handle
+        // and captions land in the same places either way.
+        var top = Math.min(region.top, h * 0.45);
+        var bottom = Math.min(region.bottom, h * 0.45);
+        var freeH = Math.max(120, h - top - bottom);
+        var sideBySide = w >= freeH;
+
+        var half = SPLIT_GAP / 2, upper, lower;
+        if (sideBySide) {
+            var cutX = Math.round(w * splitRatio);
+            upper = {x: 0, y: top, w: Math.max(40, cutX - half), h: freeH};
+            lower = {x: cutX + half, y: top, w: Math.max(40, w - cutX - half), h: freeH};
+        } else {
+            var cutY = top + Math.round(freeH * splitRatio);
+            upper = {x: 0, y: top, w: w, h: Math.max(40, cutY - half - top)};
+            lower = {x: 0, y: cutY + half, w: w, h: Math.max(40, h - bottom - cutY - half)};
+        }
+
+        var plan = swapped ? lower : upper;
+        drawTop(plan);
+        drawPov(swapped ? upper : lower, cueBall, angle);
+
+        return {
+            table: plan,
+            pov: swapped ? upper : lower,
+            seam: sideBySide
+                ? {x: upper.w, y: top, w: SPLIT_GAP, h: freeH, vertical: true}
+                : {x: 0, y: top + upper.h, w: w, h: SPLIT_GAP, vertical: false},
+            width: w, height: h
+        };
+    };
+
+    /** The table from above, fitted to its own pane. */
+    function drawTop(rect) {
+        fit(rect);
+
         ctx.save();
         ctx.beginPath();
-        ctx.rect(pane.x, pane.y, pane.w, pane.h);
+        ctx.rect(rect.x, rect.y, rect.w, rect.h);
         ctx.clip();
 
         drawTable();
@@ -415,16 +682,12 @@ function Renderer2D(canvas, world) {
         drawInHand();
 
         ctx.restore();
+    }
 
-        return {
-            table: pane,
-            pov: {x: 0, y: 0, w: 0, h: 0},        // no second view to tap
-            seam: {x: 0, y: 0, w: 0, h: 0, vertical: false},
-            width: w, height: h
-        };
-    };
-
-    /** Turn a pointer position into table coordinates. */
+    /**
+     * Turn a pointer position into table coordinates, using the pane that is
+     * currently showing the table from above.
+     */
     this.screenToTable = function (clientX, clientY, rects) {
         var box = canvas.getBoundingClientRect();
         var px = clientX - box.left, py = clientY - box.top;

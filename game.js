@@ -98,8 +98,8 @@
             } catch (err) {
                 // No WebGL: hardware acceleration switched off, a blocklisted
                 // driver, or a browser that has stopped falling back to
-                // software WebGL on its own. The game still plays - it just
-                // gets the flat table and loses the cue ball's eye view.
+                // software WebGL on its own. The game plays on with both views
+                // drawn by hand on a plain 2d canvas.
                 try {
                     view = new Renderer2D(canvas, world);
                 } catch (flatErr) {
@@ -341,7 +341,7 @@
 
     /** True if the pointer is over the cue ball's pane rather than the table's. */
     function insetHit(e) {
-        if (!rects || view.flat) return false;
+        if (!rects) return false;
         var box = document.getElementById('scene').getBoundingClientRect();
         var r = rects.pov;
         var x = e.clientX - box.left, y = e.clientY - box.top;
@@ -720,11 +720,6 @@
         }
         caption(document.getElementById('capupper'), upper,
             view.isSwapped() ? 'CUE BALL' : 'TABLE');
-        if (view.flat) {
-            // one pane, so the lower caption and the seam have nothing to label
-            // or to divide; the stylesheet has already taken them out of the way
-            return;
-        }
         caption(document.getElementById('caplower'), lower,
             view.isSwapped() ? 'TABLE' : 'CUE BALL');
 
@@ -869,12 +864,11 @@
      * bug - and say what usually brings the proper one back.
      */
     function flatMode(err) {
-        document.body.classList.add('flat');
-
         var note = document.createElement('div');
         note.id = 'flatnote';
-        note.innerHTML = '<b>Running without WebGL.</b> The table is drawn flat and the ' +
-            'cue ball view is off; the physics, the rules and every control are the same.' +
+        note.innerHTML = '<b>Running without WebGL.</b> Both views are drawn on a plain ' +
+            'canvas, so the picture is simpler; the physics, the rules and every control ' +
+            'are the same.' +
             '<br><span style="opacity:0.7">To get the 3d table back, turn on ' +
             '<i>use graphics acceleration when available</i> in the browser\u2019s settings ' +
             'and restart it, or see <b>chrome://gpu</b>.</span>' +
@@ -962,7 +956,6 @@
 
     /** Drag the seam between the two views to give one of them more room. */
     function initSeam() {
-        if (view.flat) return;              // a single pane has no seam
         var seam = document.getElementById('seam');
         if (!seam) return;
         var dragging = false;
@@ -1067,6 +1060,10 @@
 
         document.getElementById('newgame').addEventListener('click', newGame);
         document.getElementById('swap').addEventListener('click', function () { view.swapViews(); });
+        document.getElementById('dock').addEventListener('click', function () {
+            Panels.resetAll();      // every panel back into its band
+            this.blur();
+        });
         document.getElementById('sound').addEventListener('click', function () {
             this.innerHTML = Sound.toggle() ? '\u266a' : '\u266a\u0338';
             this.blur();
