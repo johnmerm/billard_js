@@ -17,9 +17,14 @@
  *   noise    jitter the aim, in radians. Zero plays the same rack the same way
  *            forever, which is useless as training data.
  */
-var Rules = require('../rules.js');
-var Geometry = require('./geometry.js');
-var Match = require('./match.js');
+/*
+ * Loaded twice over: by node with `require`, and by the page as a plain script
+ * where the modules it needs are already globals. Hence the pattern below -
+ * take what is on the page if it is there, ask node for it if it is not.
+ */
+var Rules = typeof Rules !== 'undefined' ? Rules : require('../rules.js');
+var Geometry = typeof Geometry !== 'undefined' ? Geometry : require('./geometry.js');
+var Match = typeof Match !== 'undefined' ? Match : require('./match.js');
 
 /**
  * Enough of the table to undo a trial shot.
@@ -198,5 +203,7 @@ function create(opts) {
     };
 }
 
-module.exports = {create: create, power: power, place: place, snapshot: snapshot,
+/* The page needs this as a global; node needs it on module.exports. */
+var Bot = {create: create, power: power, place: place, snapshot: snapshot,
     restore: restore};
+if (typeof module !== 'undefined' && module.exports) module.exports = Bot;

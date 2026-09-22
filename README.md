@@ -47,7 +47,8 @@ with a keyboard.
 | the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
 | the cue ball pane | tap it to swap the two views |
 | the seam between the views | drag it to give one of them more room |
-| the top right buttons | swap views, sound, dock panels, new rack |
+| the top right buttons | swap views, sound, AI opponent, dock panels, new rack |
+| **AI opponent**, or **A** | hand player 2 to the trained network |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 | ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |
 
@@ -150,6 +151,7 @@ holding it back.
 | `train/collect.js` | self play across every core, written down: `node train/collect.js --games 400` |
 | `train/value.js` | learns to judge a position from that: `node train/value.js --data data/v1` |
 | `train/player.js` | plays by simulating each shot and judging what it leaves behind |
+| `ai.js` | the trained player on the page: fetches the model, thinks without freezing it |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
 | `test/match.test.js` | harness and bot tests: `node test/match.test.js` |
 | `test/encode.test.js` | encoder and collector tests: `node test/encode.test.js` |
@@ -259,6 +261,28 @@ from npm — `npm install`, and only for the training tools. The game itself sti
 loads plain scripts and needs no build step and no package manager. The model is
 saved in the layout `tf.loadLayersModel` expects, so the page can pick it up as
 a static file like everything else.
+
+### Playing against it
+
+**AI opponent** in the top right, or **A**, hands player 2 to the trained
+network. It plays the same code the trainer does — `geometry.js` finds the pots,
+`match.js` plays each one out in the physics, `encode.js` describes what it
+leaves behind and the network says how much it likes that — so what you play
+against is exactly what was measured, not a reimplementation of it.
+
+Two things the page needs that the trainer did not. Tensorflow is a megabyte and
+a half, so it is fetched the first time somebody switches the opponent on and
+never otherwise; the button says what it is doing while that happens. And
+thinking about a turn means simulating a couple of dozen shots, which is most of
+a second, so the search is handed back as something steppable and the page
+spends a few milliseconds of each frame on it. The table goes on drawing while
+it thinks — frames get longer, because one simulated shot cannot be interrupted
+partway, but nothing stops.
+
+The one thing that does not work from a `file://` page is the AI, because
+browsers will not let a script fetch the model off the local disk. Everything
+else plays exactly as it does over http, and the button says so rather than
+failing quietly.
 
 ## About the physics
 

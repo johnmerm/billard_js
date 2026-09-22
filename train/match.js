@@ -10,8 +10,13 @@
  * sounds: a player that looks stronger over fifty games has to be checked
  * against the same fifty racks, not fifty new ones.
  */
-var Phys = require('../phys.js');
-var Rules = require('../rules.js');
+/*
+ * Loaded twice over: by node with `require`, and by the page as a plain script
+ * where the modules it needs are already globals. Hence the pattern below -
+ * take what is on the page if it is there, ask node for it if it is not.
+ */
+var Phys = typeof Phys !== 'undefined' ? Phys : require('../phys.js');
+var Rules = typeof Rules !== 'undefined' ? Rules : require('../rules.js');
 
 var TABLE_W = 2.24, TABLE_H = 1.12;
 var MIN_POWER = 0.6, MAX_POWER = 9.0;
@@ -191,9 +196,11 @@ function playGame(players, opts) {
         fouls: fouls, pots: pots, log: log, seconds: seconds};
 }
 
-module.exports = {
+/* The page needs this as a global; node needs it on module.exports. */
+var Match = {
     TABLE_W: TABLE_W, TABLE_H: TABLE_H,
     MIN_POWER: MIN_POWER, MAX_POWER: MAX_POWER,
     rng: rng, setup: setup, settle: settle,
     playShot: playShot, apply: apply, playGame: playGame
 };
+if (typeof module !== 'undefined' && module.exports) module.exports = Match;

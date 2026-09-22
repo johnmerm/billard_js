@@ -22,8 +22,13 @@
  * disagree the network is being asked questions in a language it was never
  * taught, so nothing here may depend on anything but the table and the position.
  */
-var Rules = require('../rules.js');
-var Geometry = require('./geometry.js');
+/*
+ * Loaded twice over: by node with `require`, and by the page as a plain script
+ * where the modules it needs are already globals. Hence the pattern below -
+ * take what is on the page if it is there, ask node for it if it is not.
+ */
+var Rules = typeof Rules !== 'undefined' ? Rules : require('../rules.js');
+var Geometry = typeof Geometry !== 'undefined' ? Geometry : require('./geometry.js');
 
 var VERSION = 1;
 
@@ -129,7 +134,9 @@ function labels() {
         'shots', 'bestCut', 'bestDistance', 'bestToPocket', 'secondCut']);
 }
 
-module.exports = {
+/* The page needs this as a global; node needs it on module.exports. */
+var Encode = {
     VERSION: VERSION, SIZE: SIZE, GRID_X: GRID_X, GRID_Y: GRID_Y,
     encode: encode, labels: labels
 };
+if (typeof module !== 'undefined' && module.exports) module.exports = Encode;

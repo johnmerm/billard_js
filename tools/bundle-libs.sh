@@ -13,3 +13,8 @@ npx esbuild node_modules/three/build/three.module.js \
 npx esbuild node_modules/cannon-es/dist/cannon-es.js \
     --bundle --format=iife --global-name=CANNON --minify --legal-comments=inline \
     --footer:js="$FOOTER_CANNON" --outfile=cannon-es.js
+
+# tensorflow.js ships a browser bundle already, so there is nothing to build -
+# it only has to be copied. It is only fetched when somebody switches the AI
+# opponent on, which is why it is not in index.html with the others.
+cp node_modules/@tensorflow/tfjs/dist/tf.min.js tfjs.js

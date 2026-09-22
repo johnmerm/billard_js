@@ -14,12 +14,16 @@
  *
  * It is a one move search. Two would be better and costs the square.
  */
-var tf = require('@tensorflow/tfjs');
-var Rules = require('../rules.js');
-var Geometry = require('./geometry.js');
-var Match = require('./match.js');
-var Bot = require('./bot.js');
-var Encode = require('./encode.js');
+/*
+ * Loaded twice over: by node with `require`, and by the page as a plain script
+ * where the modules it needs are already globals. Hence the pattern below -
+ * take what is on the page if it is there, ask node for it if it is not.
+ */
+var Rules = typeof Rules !== 'undefined' ? Rules : require('../rules.js');
+var Geometry = typeof Geometry !== 'undefined' ? Geometry : require('./geometry.js');
+var Match = typeof Match !== 'undefined' ? Match : require('./match.js');
+var Bot = typeof Bot !== 'undefined' ? Bot : require('./bot.js');
+var Encode = typeof Encode !== 'undefined' ? Encode : require('./encode.js');
 
 var WIN = 1e6, LOSS = -1e6;
 
@@ -57,6 +61,11 @@ function variations(candidate, spread) {
 function judgeAll(model, rows) {
     if (!rows.length) return [];
 
+    // The page fetches tensorflow only when somebody switches the AI on, so it
+    // cannot be picked up when this file loads - only when it is first needed.
+    var tf = typeof window !== 'undefined' && window.tf
+        ? window.tf : require('@tensorflow/tfjs');
+
     var flat = new Float32Array(rows.length * Encode.SIZE);
     rows.forEach(function (row, i) { flat.set(row.features, i * Encode.SIZE); });
 
@@ -74,6 +83,11 @@ function judgeAll(model, rows) {
  *   shots   how many of the shortlisted pots to try (default 3)
  *   spread  1 just the plain shot, 2 also softer and harder, 3 also with
  *           follow and draw - 1, 3 and 9 simulated shots per pot
+ *   explore how often to take a shot at random instead of the best one, 0 to 1.
+ *           Zero is how it should play; something small is how it should
+ *           generate its own training data, because a player that always takes
+ *           what it already believes is best only ever shows itself positions
+ *           it already understands.
  */
 function create(opts) {
     opts = opts || {};
@@ -81,53 +95,106 @@ function create(opts) {
     var rand = Match.rng(opts.seed || 20250922);
     var shots = opts.shots === undefined ? 3 : opts.shots;
     var spread = opts.spread === undefined ? 2 : opts.spread;
+    var explore = opts.explore || 0;
     var fallback = Bot.create({search: 0, seed: opts.seed, noise: opts.noise});
 
-    function bestShot(world, pos) {
+    /**
+     * Set up a turn's thinking without doing any of it.
+     *
+     * The work is a couple of dozen simulated shots, which is most of a second
+     * in one lump. On a page that is a second with nothing drawn, so the search
+     * is handed back as something that can be stepped: `step` plays one shot,
+     * `done` says when there are no more, and `result` names the winner. The
+     * headless player simply steps it to the end in a loop, so there is one
+     * implementation of the search and not two.
+     */
+    function plan(world, pos) {
         var legal = Rules.legalBalls(world, pos.groups, pos.player);
         var shortlist = Geometry.candidates(world, legal);
-        if (!shortlist.length) return fallback.shoot(world, pos);
+        if (!shortlist.length) {
+            return {
+                step: function () { return false; },
+                done: function () { return true; },
+                total: 0, played: 0,
+                result: function () { return fallback.shoot(world, pos); }
+            };
+        }
 
         var me = pos.player;
         var snap = Bot.snapshot(world);
-        var tried = [], judged = [];
-
+        var queue = [];
         for (var i = 0; i < Math.min(shots, shortlist.length); i++) {
-            var tries = variations(shortlist[i], spread);
-
-            for (var v = 0; v < tries.length; v++) {
-                var params = tries[v];
-                var trial = {groups: pos.groups.slice(), player: pos.player,
-                    open: pos.open, broken: pos.broken};
-                var out = Match.playShot(world, trial, params);
-
-                if (out.gameOver) {
-                    tried.push({params: params,
-                        settled: out.gameOver.winner === me ? WIN : LOSS});
-                } else {
-                    Match.apply(world, trial, out);
-                    tried.push({params: params, index: judged.length,
-                        // a foul is worse than the position alone says: the
-                        // opponent gets to put the ball wherever they like
-                        penalty: out.foul ? 0.15 : 0});
-                    judged.push({features: Encode.encode(world, trial),
-                        mine: trial.player === me});
-                }
-
-                Bot.restore(world, snap);
-            }
+            variations(shortlist[i], spread).forEach(function (params) {
+                queue.push(params);
+            });
         }
 
-        var values = judgeAll(model, judged);
-        var best = null, bestScore = -Infinity;
-        tried.forEach(function (t) {
-            var score = t.settled !== undefined
-                ? t.settled
-                : values[t.index] - t.penalty;
-            if (score > bestScore) { bestScore = score; best = t.params; }
-        });
+        var at = 0, tried = [], judged = [];
 
-        return best || fallback.shoot(world, pos);
+        function step() {
+            if (at >= queue.length) return false;
+            var params = queue[at++];
+
+            // back to where the turn started: the page goes on stepping the
+            // table between one of these and the next, and a trial has to
+            // begin from the position the player is actually facing
+            Bot.restore(world, snap);
+
+            var trial = {groups: pos.groups.slice(), player: pos.player,
+                open: pos.open, broken: pos.broken};
+            var out = Match.playShot(world, trial, params);
+
+            if (out.gameOver) {
+                tried.push({params: params,
+                    settled: out.gameOver.winner === me ? WIN : LOSS});
+            } else {
+                Match.apply(world, trial, out);
+                tried.push({params: params, index: judged.length,
+                    // a foul is worse than the position alone says: the
+                    // opponent gets to put the ball wherever they like
+                    penalty: out.foul ? 0.15 : 0});
+                judged.push({features: Encode.encode(world, trial),
+                    mine: trial.player === me});
+            }
+
+            Bot.restore(world, snap);
+            return at < queue.length;
+        }
+
+        function result() {
+            var values = judgeAll(model, judged);
+            var best = null, bestScore = -Infinity;
+            tried.forEach(function (t) {
+                var score = t.settled !== undefined
+                    ? t.settled
+                    : values[t.index] - t.penalty;
+                if (score > bestScore) { bestScore = score; best = t.params; }
+            });
+
+            // Now and then play something else on purpose. Without it the next
+            // round of training only ever sees the positions this model already
+            // steers towards, and learns nothing it did not already believe.
+            if (explore && tried.length > 1 && rand() < explore) {
+                var pick = tried[Math.floor(rand() * tried.length)];
+                if (pick && pick.settled === undefined) return pick.params;
+            }
+
+            return best || fallback.shoot(world, pos);
+        }
+
+        return {
+            step: step,
+            done: function () { return at >= queue.length; },
+            get played() { return at; },
+            total: queue.length,
+            result: result
+        };
+    }
+
+    function bestShot(world, pos) {
+        var thinking = plan(world, pos);
+        while (thinking.step()) { /* one simulated shot at a time */ }
+        return thinking.result();
     }
 
     /** Ball in hand: the same question, asked of where to put it down. */
@@ -165,6 +232,7 @@ function create(opts) {
 
     return {
         name: opts.name || 'value',
+        plan: plan,
         place: place,
         shoot: function (world, pos) {
             if (!pos.broken) return fallback.shoot(world, pos);   // the break is the break
@@ -173,4 +241,6 @@ function create(opts) {
     };
 }
 
-module.exports = {create: create, variations: variations};
+/* The page needs this as a global; node needs it on module.exports. */
+var Player = {create: create, variations: variations};
+if (typeof module !== 'undefined' && module.exports) module.exports = Player;

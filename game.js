@@ -31,7 +31,8 @@
         message: 'Break them up: place the cue ball behind the line and fire.',
         pocketed: [],
         ghost: null,                // cue ball position while placing it
-        split: 0.62                 // how much of the screen the upper view gets
+        split: 0.62,                // how much of the screen the upper view gets
+        ai: 0                       // which player the trained network plays, or 0 for nobody
     };
 
     var shot = null;
@@ -90,6 +91,7 @@
     }
 
     function newGame() {
+        if (typeof AI !== 'undefined') AI.cancel();
         if (!world) {
             buildWorld();
             var canvas = document.getElementById('scene');
@@ -426,6 +428,9 @@
             case 'KeyV':
                 view.swapViews();
                 break;
+            case 'KeyA':
+                toggleAI();
+                break;
             case 'KeyM':
                 Sound.toggle();
                 break;
@@ -650,6 +655,110 @@
     }
 
     /* ------------------------------------------------------------------ *
+     * the trained player
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Hand a turn to the network when it is that player's.
+     *
+     * Called once a frame. It never blocks: starting a turn only sets the
+     * search up, `AI.tick` spends a few milliseconds of each frame on it, and
+     * the shot is played on whichever frame the answer arrives. The table goes
+     * on drawing throughout, which is the whole reason it is arranged this way.
+     */
+    function playAI() {
+        if (!state.ai || typeof AI === 'undefined' || !AI.ready()) return;
+        if (state.player !== state.ai - 1) { AI.cancel(); return; }
+        if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
+
+        if (!AI.busy()) {
+            AI.think(world, {
+                groups: state.groups, player: state.player, open: state.open,
+                broken: state.broken, ballInHand: state.phase === 'ballInHand',
+                kitchenOnly: state.kitchenOnly
+            });
+            return;
+        }
+
+        AI.tick(6);
+        var answer = AI.poll();
+        if (!answer) return;
+
+        if (answer.failed) {
+            state.ai = 0;                   // stop rather than sit there stuck
+            state.message = 'The AI stopped: ' + answer.failed.message;
+            updateAiButton();
+            updateHud();
+            return;
+        }
+
+        if (answer.place) {
+            state.ghost = answer.place;
+            placeCueBall(answer.place.x, answer.place.y);
+            updateHud();
+        } else if (answer.shot && state.phase === 'aiming') {
+            state.angle = answer.shot.angle;
+            state.side = answer.shot.side || 0;
+            state.vert = answer.shot.vert || 0;
+            setElevation((answer.shot.elevation || 0) * 180 / Math.PI);
+            state.power = Phys.clamp(answer.shot.power, MIN_POWER, MAX_POWER);
+            drawSpinWidget();
+            shoot();
+        }
+    }
+
+    function updateAiButton() {
+        var button = document.getElementById('ai');
+        if (!button) return;
+        var on = !!state.ai;
+        button.classList.toggle('on', on);
+        button.title = on
+            ? 'Player 2 is played by the trained network (A)'
+            : 'Let the trained network play player 2 (A)';
+    }
+
+    /**
+     * Switch the network on or off. The first time costs a download - it is a
+     * megabyte and a half of tensorflow plus the model - so the button says
+     * what it is doing rather than appearing to have been ignored.
+     */
+    function toggleAI() {
+        if (state.ai) {
+            state.ai = 0;
+            AI.cancel();
+            updateAiButton();
+            return;
+        }
+
+        var button = document.getElementById('ai');
+        if (AI.ready()) {
+            state.ai = 2;
+            updateAiButton();
+            return;
+        }
+
+        if (button) button.classList.add('loading');
+        AI.load().then(function () {
+            state.ai = 2;
+            if (button) button.classList.remove('loading');
+            updateAiButton();
+            state.message = 'The network is playing player 2.';
+            updateHud();
+        }).catch(function (err) {
+            if (button) button.classList.remove('loading');
+            // A page opened straight off the disk cannot fetch the model:
+            // browsers refuse file:// requests from scripts. The game plays
+            // fine that way, but the AI needs the files served.
+            state.message = window.location.protocol === 'file:'
+                ? 'The AI needs the game served over http, not opened from a file. ' +
+                    'Everything else works as it is.'
+                : 'Could not start the AI: ' + err.message;
+            updateHud();
+            if (window.console) window.console.error('billiards: ai', err);
+        });
+    }
+
+    /* ------------------------------------------------------------------ *
      * sound - short synthesised clicks, no assets to load
      * ------------------------------------------------------------------ */
 
@@ -748,6 +857,8 @@
         } else {
             view.setInHand(null);
         }
+
+        playAI();
 
         placeInset();
         view.syncBalls();
@@ -976,6 +1087,10 @@
 
         document.getElementById('newgame').addEventListener('click', newGame);
         document.getElementById('swap').addEventListener('click', function () { view.swapViews(); });
+        var ai = document.getElementById('ai');
+        if (ai) {
+            ai.addEventListener('click', function () { toggleAI(); this.blur(); });
+        }
         document.getElementById('dock').addEventListener('click', function () {
             Panels.resetAll();      // every panel back into its band
             this.blur();

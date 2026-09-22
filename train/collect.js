@@ -37,6 +37,22 @@ function arg(name, fallback) {
 }
 
 /**
+ * Whichever player the run asked for. `greedy`, `searchN`, or `value:<dir>` to
+ * play the trained network against itself, which is what a second round of
+ * training is: better games in, better judgement out.
+ */
+function makePlayer(opts, seed) {
+    if (opts.model) {
+        var Player = require('./player.js');
+        return Player.create({
+            model: opts.model, seed: seed, noise: opts.noise,
+            shots: opts.shots, spread: opts.spread, explore: opts.explore
+        });
+    }
+    return Bot.create({search: opts.search, seed: seed, noise: opts.noise});
+}
+
+/**
  * Play `games` racks and return every turn in them, labelled.
  *
  * @return {Object} {rows: Float32Array, turns, finished, wins}
@@ -49,8 +65,8 @@ function collect(games, seed0, opts) {
     for (var g = 0; g < games; g++) {
         var seed = seed0 + g;
         var players = [
-            Bot.create({search: opts.search, seed: seed * 7919, noise: opts.noise}),
-            Bot.create({search: opts.search, seed: seed * 104729, noise: opts.noise})
+            makePlayer(opts, seed * 7919),
+            makePlayer(opts, seed * 104729)
         ];
 
         var turns = [];
@@ -100,11 +116,16 @@ module.exports = {collect: collect, STRIDE: STRIDE};
 if (require.main !== module) return;
 
 if (process.env.BILLIARDS_SHARD) {
-    var job = JSON.parse(process.env.BILLIARDS_SHARD);
-    var got = collect(job.games, job.seed, job);
-    fs.writeFileSync(job.file, Buffer.from(got.rows.buffer, 0, got.rows.byteLength));
-    process.send({turns: got.turns, finished: got.finished, drawn: got.drawn});
-    process.exit(0);
+    (async function () {
+        var job = JSON.parse(process.env.BILLIARDS_SHARD);
+        if (job.player) job.model = await require('./value.js').loadModel(job.player);
+
+        var got = collect(job.games, job.seed, job);
+        fs.writeFileSync(job.file, Buffer.from(got.rows.buffer, 0, got.rows.byteLength));
+        process.send({turns: got.turns, finished: got.finished, drawn: got.drawn});
+        process.exit(0);
+    })();
+    return;
 }
 
 /* --------------------------- the driver --------------------------- */
@@ -115,6 +136,10 @@ var outDir = String(arg('out', 'data/v' + Encode.VERSION));
 var seed0 = +arg('seed', 1);
 var search = +arg('search', 4);
 var noise = +arg('noise', 0.01);
+var playerSpec = arg('player', null);
+var explore = +arg('explore', 0.12);
+var shots = +arg('shots', 3);
+var spread = +arg('spread', 1);
 
 fs.mkdirSync(outDir, {recursive: true});
 
@@ -123,8 +148,10 @@ var started = Date.now();
 var done = 0, totals = {turns: 0, finished: 0, drawn: 0};
 var shards = [];
 
-console.log('collecting ' + games + ' racks across ' + workers + ' workers' +
-    ' (search=' + search + ', noise=' + noise + ')');
+console.log('collecting ' + games + ' racks across ' + workers + ' workers (' +
+    (playerSpec ? 'player ' + playerSpec + ', explore=' + explore +
+        ', shots=' + shots + ', spread=' + spread
+        : 'baseline bot, search=' + search) + ', noise=' + noise + ')');
 
 for (var i = 0; i < workers; i++) {
     var mine = Math.min(per, games - i * per);
@@ -137,7 +164,9 @@ for (var i = 0; i < workers; i++) {
         env: Object.assign({}, process.env, {
             BILLIARDS_SHARD: JSON.stringify({
                 games: mine, seed: seed0 + i * per * 1000,
-                file: file, search: search, noise: noise
+                file: file, search: search, noise: noise,
+                player: playerSpec === true ? 'model/value' : playerSpec,
+                explore: explore, shots: shots, spread: spread
             })
         })
     });
@@ -166,6 +195,8 @@ function finish() {
         unfinished: totals.drawn,
         shards: shards.map(function (f) { return path.basename(f); }),
         search: search, noise: noise, seed: seed0,
+        player: playerSpec === true ? 'model/value' : playerSpec,
+        explore: playerSpec ? explore : undefined,
         seconds: wall
     };
     fs.writeFileSync(path.join(outDir, 'meta.json'), JSON.stringify(meta, null, 2));
