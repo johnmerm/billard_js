@@ -204,6 +204,26 @@ console.log('pocketing');
     }
 })();
 
+console.log('balls stay on the cloth');
+
+(function () {
+    // heavy topspin straight into a cushion: friction against a flat box face
+    // used to climb it and launch the ball off the end of the table
+    var w = table();
+    var b = w.add(new Phys.Ball(0, 1.9, 0.56));
+    w.strike(b, 1, 0, 9, 0, 0.7);
+
+    var t = 0, highest = 0;
+    while (t < 2 && b.active) {
+        w.step(1 / 480);
+        t += 1 / 480;
+        highest = Math.max(highest, b.height - b.radius);
+    }
+    check('a rail does not launch a ball with heavy top', highest < 0.02,
+        (highest * 1000).toFixed(1) + ' mm of air');
+    check('and the ball is still on the table', b.active);
+})();
+
 console.log('pockets are holes, not trigger zones');
 
 (function () {

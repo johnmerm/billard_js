@@ -213,6 +213,9 @@
         world.addEventListener('preStep', function () {
             self.cloth();
         });
+        world.addEventListener('postStep', function () {
+            self.settle();
+        });
     }
 
     Phys.Table = Table;
@@ -276,12 +279,20 @@
 
         this.cushions = c;
 
-        var railHeight = r * 1.35, depth = r * 1.6, skirt = 0.06;
-        for (var i = 0; i < c.length; i++) this.addCushion(c[i], railHeight, depth, skirt);
+        // The rubber a player sees is about half a ball high, but a box that
+        // short is trouble: a ball arriving at break speed covers most of the
+        // cushion's depth in one step, and the nearest way out of the box is
+        // then over the top rather than back the way it came - the solver duly
+        // launched the cue ball into the air and it sailed off the end of the
+        // table. The bodies are built shoulder high instead, well above any ball,
+        // and the renderer draws the rubber at its proper height from the same
+        // segments.
+        var wallHeight = r * 3, depth = r * 1.6, skirt = 0.06;
+        for (var i = 0; i < c.length; i++) this.addCushion(c[i], wallHeight, depth, skirt);
     };
 
     /** One rail segment, as a box standing on the outside of the playing surface. */
-    Table.prototype.addCushion = function (seg, railHeight, depth, skirt) {
+    Table.prototype.addCushion = function (seg, height, depth, skirt) {
         var W = this.width, H = this.height;
 
         var x1 = seg.x1 - W / 2, z1 = H / 2 - seg.y1;
@@ -297,8 +308,8 @@
         if (nx * -mx + nz * -mz > 0) { nx = -nx; nz = -nz; }
 
         var body = new CANNON.Body({mass: 0, material: cushionMaterial});
-        body.addShape(new CANNON.Box(new CANNON.Vec3(len / 2, (railHeight + skirt) / 2, depth / 2)));
-        body.position.set(mx + nx * depth / 2, (railHeight - skirt) / 2, mz + nz * depth / 2);
+        body.addShape(new CANNON.Box(new CANNON.Vec3(len / 2, (height + skirt) / 2, depth / 2)));
+        body.position.set(mx + nx * depth / 2, (height - skirt) / 2, mz + nz * depth / 2);
         // a box's local +x runs along the segment; +y rotation turns +x towards -z
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.atan2(-dz, dx));
         body.isCushion = true;
@@ -391,6 +402,28 @@
         }
     };
 
+    /**
+     * Run after the solver, to undo the one thing a box shaped cushion gets
+     * badly wrong.
+     *
+     * A real cushion meets the ball above its equator: the nose overhangs, so
+     * the contact pushes down as well as back and the ball stays on the cloth.
+     * A flat vertical face does the opposite - friction against a ball arriving
+     * with heavy topspin climbs it - and at break speed that threw the cue ball
+     * 19 cm into the air and clean off the end of the table.
+     */
+    Table.prototype.settle = function () {
+        for (var i = 0; i < this.balls.length; i++) {
+            var ball = this.balls[i];
+            if (!ball.hitRail) continue;
+            ball.hitRail = false;
+            if (!ball.active) continue;
+
+            var v = ball.body.velocity;
+            if (v.y > 0) v.y *= 0.15;
+        }
+    };
+
     /** Are any two balls in contact right now? */
     Table.prototype.impacting = function () {
         var balls = this.balls;
@@ -429,6 +462,11 @@
         ball.body.addEventListener('collide', function (e) {
             var other = e.body;
             if (!other || other.isCloth) return;
+
+            // Collide events arrive before the solver has applied its impulses,
+            // so the lift a cushion gives the ball is taken back out afterwards,
+            // in settle() below.
+            if (other.isCushion) ball.hitRail = true;
 
             var speed = Math.abs(e.contact.getImpactVelocityAlongNormal());
             if (speed < 0.05) return;

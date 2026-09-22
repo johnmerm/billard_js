@@ -132,6 +132,14 @@ and it follows through.
   clamp in the cloth pass does that job instead, and it only holds a ball that
   has no spin left to act on — a cue ball stopped dead with topspin on it is not
   at rest, it is about to follow through.
+- **The rails are built shoulder high and hold the ball down.** A box shaped
+  cushion gets one thing badly wrong: a real cushion meets the ball above its
+  equator, so its nose pushes down as well as back, while a flat vertical face
+  lets a ball arriving with heavy topspin climb it. At break speed that threw
+  the cue ball 19 cm into the air and clean off the end of the table. The lift
+  is taken back out after the solver runs, and the cushion bodies are built
+  taller than any ball so a fast one cannot resolve its way over the top — the
+  renderer still draws the rubber at its proper height.
 - **Ball on ball friction is kept low.** At this scale cannon's friction impulse
   is generous, and anything higher spins the object ball up at the expense of
   the speed it should be leaving with.
