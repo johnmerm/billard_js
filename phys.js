@@ -36,7 +36,9 @@
     // A hard break moves a ball about 8 m/s; at 1/480 s that is 17 mm a step,
     // well under a ball radius, so nothing tunnels through the rack.
     var FIXED_STEP = 1 / 480;
-    var MAX_SUB_STEPS = 40;
+    // 48 steps of 1/480 is exactly the 0.1s that `step` clamps a frame to, so
+    // no frame short enough to be worth simulating ever loses time to the cap
+    var MAX_SUB_STEPS = 48;
 
     var REST_SPEED = 0.008;     // below this the cloth simply holds the ball
 
@@ -170,6 +172,7 @@
         this.cushions = [];       // table coordinate segments, also drawn by the renderer
         this.events = [];
 
+        this.carry = 0;           // time handed in but not yet stepped
         this.slateBounce = opts.slateBounce !== undefined ? opts.slateBounce : 0.45;
         this.slidingFriction = opts.slidingFriction !== undefined ? opts.slidingFriction : 0.2;
         this.rollingFriction = opts.rollingFriction !== undefined ? opts.rollingFriction : 0.012;
@@ -572,12 +575,33 @@
      * Advance the table by dt seconds and return what happened.
      * cannon does the stepping; this collects the events and clears the pockets.
      */
+    /**
+     * Advance the table by `dt` seconds of real time.
+     *
+     * The sub stepping is done here rather than by handing cannon a variable
+     * dt, because cannon's own loop watches the wall clock and stops early once
+     * it has spent longer than a step is worth - so on a slow or busy machine
+     * it quietly runs fewer steps than the time it was given, and the same
+     * shot comes out differently depending on what else the computer was doing.
+     * Fixed steps and an explicit cap instead: the table falls behind on a slow
+     * device rather than playing out differently on one.
+     */
     Table.prototype.step = function (dt) {
         this.events.length = 0;
         dt = Math.min(dt, 0.1);
         if (dt <= 0) return this.events;
 
-        this.cannon.step(FIXED_STEP, dt, MAX_SUB_STEPS);
+        this.carry += dt;
+        var n = 0;
+        while (this.carry >= FIXED_STEP && n < MAX_SUB_STEPS) {
+            this.cannon.step(FIXED_STEP);       // one step, no clock involved
+            this.carry -= FIXED_STEP;
+            n++;
+        }
+        // whatever is left over after the cap is time this table will never
+        // catch up on; keeping it would only make the next call longer still
+        if (this.carry > FIXED_STEP) this.carry = FIXED_STEP;
+
         this.collect();
         return this.events;
     };

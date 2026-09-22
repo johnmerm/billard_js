@@ -226,17 +226,7 @@
     }
 
     function placementLegal(x, y) {
-        var r = world.radius;
-        if (x < r * 1.2 || x > TABLE_W - r * 1.2 || y < r * 1.2 || y > TABLE_H - r * 1.2) return false;
-        if (state.kitchenOnly && x > TABLE_W * 0.25) return false;
-
-        for (var i = 0; i < world.balls.length; i++) {
-            var b = world.balls[i];
-            if (!b.active || b.id === 0) continue;
-            var dx = b.x - x, dy = b.y - y;
-            if (dx * dx + dy * dy < (2.05 * r) * (2.05 * r)) return false;
-        }
-        return true;
+        return Rules.placementLegal(world, x, y, state.kitchenOnly);
     }
 
     function placeCueBall(x, y) {

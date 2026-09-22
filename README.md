@@ -143,7 +143,11 @@ holding it back.
 | `test/rules.test.js` | eight ball rules tests: `node test/rules.test.js` |
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
 | `train/geometry.js` | ghost ball aiming and the shortlist of pots worth playing |
+| `train/match.js` | a rack played with no browser: rack, shoot, settle, judge |
+| `train/bot.js` | the baseline player a learned one has to beat |
+| `train/selfplay.js` | play the bots against each other: `node train/selfplay.js --games 20` |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
+| `test/match.test.js` | harness and bot tests: `node test/match.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
@@ -169,6 +173,24 @@ on the screen; anything headless applies it to its own and racks up again.
 That split is what lets a match be played with no browser at all, which is what
 a self play trainer needs. It also means the rules can be tested directly, one
 call per case, rather than by driving a page.
+
+## Playing it without a browser
+
+`train/` holds a table that plays itself. `node train/selfplay.js --games 20`
+racks up, plays both bots against each other and says what happened; a rack
+takes about one and a half seconds, against a couple of minutes on the page,
+because nothing is waiting for frames.
+
+The baseline bot plays the way you might after an afternoon in a pub: take the
+straightest pot on the table, hit it hard enough to reach the pocket, and if
+there is nothing on, roll up behind something and hope. It never asks where the
+cue ball will finish, which is exactly the gap a learned player is meant to
+fill. `--a search4` turns on simulating the shortlist and keeping a shot that
+actually drops, which is worth about seventy per cent of the games against the
+same bot without it.
+
+Every rack is reproducible: the same seed racks the same balls and plays the
+same game, on any machine, however busy it is.
 
 ## About the physics
 

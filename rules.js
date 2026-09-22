@@ -190,6 +190,25 @@ var Rules = (function () {
     }
 
     /**
+     * May the cue ball be put down here? Clear of the rails, not on top of a
+     * ball already on the cloth, and behind the head string when the ball in
+     * hand came from a foul on the break.
+     */
+    function placementLegal(world, x, y, kitchenOnly) {
+        var r = world.radius, W = world.width, H = world.height;
+        if (x < r * 1.2 || x > W - r * 1.2 || y < r * 1.2 || y > H - r * 1.2) return false;
+        if (kitchenOnly && x > W * 0.25) return false;
+
+        for (var i = 0; i < world.balls.length; i++) {
+            var b = world.balls[i];
+            if (!b.active || b.id === 0) continue;
+            var dx = b.x - x, dy = b.y - y;
+            if (dx * dx + dy * dy < (2.05 * r) * (2.05 * r)) return false;
+        }
+        return true;
+    }
+
+    /**
      * Put the 8 ball back on the foot spot, or as close behind it as there is
      * room for. Not part of judging a shot, but it is the rules' business where
      * a spotted ball goes.
@@ -217,6 +236,7 @@ var Rules = (function () {
         newShot: newShot,
         track: track,
         resolve: resolve,
+        placementLegal: placementLegal,
         respot: respot
     };
 })();
