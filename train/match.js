@@ -145,6 +145,11 @@ function playGame(players, opts) {
     for (var n = 0; n < maxShots; n++) {
         var player = players[pos.player];
 
+        // the position as the player to move inherits it, ball in hand and all:
+        // that is what the shot before it created, and what a value function has
+        // to be able to judge
+        if (opts.observe) opts.observe(world, pos, n);
+
         if (pos.ballInHand) {
             var spot = player.place(world, pos);
             if (!spot || !Rules.placementLegal(world, spot.x, spot.y, pos.kitchenOnly)) {

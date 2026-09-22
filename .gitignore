@@ -1,0 +1,3 @@
+# Self play output: regenerate it with train/collect.js rather than carrying it
+# around. A few hours of racks is tens of megabytes and none of it is source.
+/data/

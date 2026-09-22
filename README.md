@@ -146,8 +146,11 @@ holding it back.
 | `train/match.js` | a rack played with no browser: rack, shoot, settle, judge |
 | `train/bot.js` | the baseline player a learned one has to beat |
 | `train/selfplay.js` | play the bots against each other: `node train/selfplay.js --games 20` |
+| `train/encode.js` | a table as 109 numbers, from the point of view of whoever is about to shoot |
+| `train/collect.js` | self play across every core, written down: `node train/collect.js --games 400` |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
 | `test/match.test.js` | harness and bot tests: `node test/match.test.js` |
+| `test/encode.test.js` | encoder and collector tests: `node test/encode.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
@@ -191,6 +194,21 @@ same bot without it.
 
 Every rack is reproducible: the same seed racks the same balls and plays the
 same game, on any machine, however busy it is.
+
+`node train/collect.js --games 400` runs that across every core and writes down,
+for every turn, the position the player to move inherited and whether they went
+on to win — which is the whole training set for a value function. The position
+is taken *before* that player does anything, ball in hand included, because that
+is exactly what the shot before it created, and judging what a shot leaves the
+opponent is the question a player has to be able to answer.
+
+`train/encode.js` is what a network would see: a coarse grid of where the balls
+are, one channel for mine, one for theirs and one for the 8; where the cue ball
+is and whether it is in hand; and what the shot geometry already knows — how
+many pots are on and how straight the best one is. Everything is written from
+the point of view of whoever is about to shoot, and by role rather than by
+number, because the 3 and the 5 play identically and telling them apart would
+only let a network learn the rack instead of the game.
 
 ## About the physics
 
