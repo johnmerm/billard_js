@@ -94,6 +94,7 @@
         }
         rack();
         state.phase = 'ballInHand';
+        cueBall.lift();
         state.player = 0;
         state.groups = [null, null];
         state.open = true;
@@ -104,7 +105,7 @@
         state.angle = 0;
         state.pocketed = [];
         state.message = 'Break them up: place the cue ball behind the line and fire.';
-        state.ghost = {x: TABLE_W * 0.22, y: TABLE_H / 2};
+        state.ghost = null;
 
         drawSpinWidget();
         updateHud();
@@ -220,10 +221,7 @@
             state.open = false;
         }
 
-        if (scratch) {
-            // bring the cue ball back out of the pocket; it is placed by hand next
-            cueBall.placeAt(TABLE_W * 0.25, TABLE_H / 2);
-        }
+
 
         var mine = objects.filter(function (id) {
             return !state.groups[player] || groupOf(id) === state.groups[player];
@@ -231,10 +229,8 @@
 
         if (foul) {
             state.player = 1 - player;
-            state.phase = 'ballInHand';
             // after a bad break the incoming player is still stuck behind the line
-            state.kitchenOnly = shot.breakShot;
-            state.ghost = {x: TABLE_W * 0.25, y: TABLE_H / 2};
+            takeBallInHand(shot.breakShot);
             state.message = foul + ' Ball in hand for player ' + (state.player + 1) + '.';
         } else if (mine.length) {
             state.phase = 'aiming';
@@ -274,6 +270,18 @@
     /* ------------------------------------------------------------------ *
      * ball in hand
      * ------------------------------------------------------------------ */
+
+    /**
+     * Hand the cue ball to the player at the table. The ball comes off the
+     * cloth while they decide: all they are moving is a marker, so it cannot
+     * shoulder the balls already down out of position.
+     */
+    function takeBallInHand(kitchenOnly) {
+        cueBall.lift();
+        state.phase = 'ballInHand';
+        state.kitchenOnly = !!kitchenOnly;
+        state.ghost = null;
+    }
 
     function placementLegal(x, y) {
         var r = world.radius;
@@ -725,9 +733,14 @@
             }
         }
 
-        // the cue ball floats under the cursor while it is in hand
-        if (state.phase === 'ballInHand' && state.ghost) {
-            cueBall.placeAt(state.ghost.x, state.ghost.y);
+        // the cue ball is off the table while it is in hand; what follows the
+        // pointer is a marker showing where it would be put down
+        if (state.phase === 'ballInHand') {
+            view.setInHand(state.ghost
+                ? {x: state.ghost.x, y: state.ghost.y, legal: placementLegal(state.ghost.x, state.ghost.y)}
+                : null);
+        } else {
+            view.setInHand(null);
         }
 
         placeInset();

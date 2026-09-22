@@ -125,6 +125,18 @@
         this.body.angularVelocity.set(0, 0, 0);
     };
 
+    /**
+     * Take the ball off the table without potting it: the cue ball is in hand,
+     * and a ball being carried around should not be shouldering the others out
+     * of the way while its owner decides where to put it down.
+     */
+    Phys.Ball.prototype.lift = function () {
+        if (!this.table || !this.active) return;
+        this.stop();
+        this.table.cannon.removeBody(this.body);
+        this.active = false;
+    };
+
     /** Put the ball on the cloth at a table coordinate, bringing it back if potted. */
     Phys.Ball.prototype.placeAt = function (x, y) {
         if (!this.table) {

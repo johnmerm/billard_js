@@ -38,6 +38,7 @@ with a keyboard.
 | the small view | tap it to bring it up front |
 | the top right buttons | swap views, sound, new rack |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
+| ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |
 
 On a mouse the old habits still work: hold the button down on the table to
 charge and release to shoot, **space** to charge, **←** **→** to fine aim

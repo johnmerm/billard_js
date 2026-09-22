@@ -202,6 +202,24 @@ function Renderer(canvas, world) {
     ghost.rotation.x = -Math.PI / 2;
     scene.add(ghost);
 
+    // Where the cue ball would land while it is in hand. It is only ever a
+    // marker: the ball itself stays off the table until it is put down, so
+    // carrying it about cannot disturb the balls already on the cloth.
+    var inHand = new THREE.Object3D();
+    var inHandMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.4});
+    var inHandBall = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 18), inHandMat);
+    inHandBall.position.y = R;
+    inHand.add(inHandBall);
+
+    var inHandRingMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.75});
+    var inHandRing = new THREE.Mesh(new THREE.TorusGeometry(R * 1.45, R * 0.07, 6, 32), inHandRingMat);
+    inHandRing.rotation.x = -Math.PI / 2;
+    inHandRing.position.y = 0.006;
+    inHand.add(inHandRing);
+
+    inHand.visible = false;
+    scene.add(inHand);
+
     /* --------------------------- cameras ------------------------------ */
 
     var margin = FRAME + R * 2;
@@ -346,6 +364,21 @@ function Renderer(canvas, world) {
         }
     };
 
+    /**
+     * Show where the cue ball would be put down.
+     *
+     * @param {?Object} spot {x, y, legal} in table coordinates, or null to hide it
+     */
+    this.setInHand = function (spot) {
+        inHand.visible = !!spot;
+        if (!spot) return;
+
+        inHand.position.set(spot.x - W / 2, 0, -(spot.y - H / 2));
+        var colour = spot.legal ? 0xffffff : 0xff5a4a;
+        inHandMat.color.setHex(colour);
+        inHandRingMat.color.setHex(colour);
+    };
+
     /** Where the point of view camera sits and looks. */
     function aimPov(cueBall, angle) {
         if (!cueBall) return;
@@ -355,7 +388,11 @@ function Renderer(canvas, world) {
         var len = Math.sqrt(dx * dx + dy * dy) || 1;
         dx /= len; dy /= len;
 
-        var x = cueBall.x - W / 2, z = -(cueBall.y - H / 2);
+        // while the ball is in hand the view rides the marker instead
+        var from = inHand.visible
+            ? {x: inHand.position.x, z: inHand.position.z}
+            : {x: cueBall.x - W / 2, z: -(cueBall.y - H / 2)};
+        var x = from.x, z = from.z;
         // just above the centre of the ball, tipped down a touch so the cloth
         // and the object balls fill the frame rather than the room
         povCamera.position.set(x, R * 1.5, z);
@@ -447,9 +484,11 @@ function Renderer(canvas, world) {
         // the point of view camera sits inside the cue ball, so the ball itself
         // and the stick behind it have to come out of the way
         var hideCue = (camera === povCamera);
+        var markerWas = inHand.visible;
         if (hideCue) {
             cueMesh.visible = false;
             cue.visible = false;
+            inHand.visible = false;      // the camera is sitting inside it
         }
 
         // three.js counts viewport y from the bottom of the canvas
@@ -461,6 +500,7 @@ function Renderer(canvas, world) {
         if (hideCue) {
             cueMesh.visible = world.ball(0).active;
             cue.visible = self._cueVisible;
+            inHand.visible = markerWas;
         }
     }
 
