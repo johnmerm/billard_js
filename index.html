@@ -54,9 +54,30 @@
 
     /* ---------------------------------------------------------- status */
 
+    /* The panels are tiles, not overlays: a band along the top holds the score
+       and the buttons, a band along the bottom holds the controls, and the two
+       views divide up everything in between. Dragging one by its grip still
+       lifts it out to float, and a double tap on the grip puts it back in the
+       band - at which point the views take the space back. */
+    #topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        padding: calc(var(--safe-t) + 8px) calc(var(--safe-r) + 8px) 8px calc(var(--safe-l) + 8px);
+        pointer-events: none;          /* the gap between them is still table */
+    }
+    #topbar > * { pointer-events: auto; }
+
     #status {
-        top: calc(var(--pad) + var(--safe-t));
-        left: calc(var(--pad) + var(--safe-l));
+        /* relative, not static: it stays in the band's flow but still anchors
+           its own grip, which would otherwise position against the band */
+        position: relative;
         /* a fixed width: the panel is draggable, and one that resized itself
            every time the message changed would shift under your finger */
         width: 320px;
@@ -114,21 +135,28 @@
     button:active, button.held { background: rgba(255, 255, 255, 0.24); }
 
     #buttons {
-        top: calc(var(--pad) + var(--safe-t));
-        right: calc(var(--pad) + var(--safe-r));
+        position: relative;
         display: flex;
         gap: 8px;
         padding: 8px;
+        align-self: flex-start;
     }
 
     /* -------------------------------------------------------- controls */
 
     #controls {
-        left: calc(var(--pad) + var(--safe-l));
-        bottom: calc(var(--pad) + var(--safe-b));
+        left: 0;
+        right: 0;
+        bottom: 0;
         display: flex;
-        gap: 14px;
+        gap: 18px;
         align-items: center;
+        justify-content: center;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        padding: 10px calc(var(--safe-r) + 12px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 12px);
     }
 
     .group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
@@ -161,7 +189,8 @@
     }
     .hint { font-size: 10px; color: var(--dim); text-align: center; }
 
-    #power { width: 180px; align-self: stretch; }
+    #power { width: 190px; align-self: stretch; }
+    #keysgroup { flex: 0 1 auto; }
     #powerbar {
         width: 100%;
         height: 12px;
@@ -176,7 +205,13 @@
         background: linear-gradient(90deg, #4ea36b, #f2c500 60%, #d8422c);
     }
 
-    #keys { color: var(--dim); font-size: 11px; line-height: 1.7; margin-top: 8px; }
+    #keys {
+        color: var(--dim);
+        font-size: 11px;
+        line-height: 1.8;
+        margin-top: 6px;
+        white-space: nowrap;
+    }
     #keys kbd {
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid var(--edge);
@@ -303,11 +338,8 @@
     body.touch .btxt { display: none; }
 
     body.touch #controls {
-        left: calc(var(--pad) + var(--safe-l));
-        right: calc(var(--pad) + var(--safe-r));
         justify-content: space-between;
         gap: 10px;
-        padding: 10px;
     }
 
     body.touch .nudge { width: 60px; height: 60px; font-size: 21px; }
@@ -319,15 +351,22 @@
     body.touch button { padding: 11px 13px; font-size: 16px; }
 
     body.touch #status {
-        width: 58vw;
-        max-width: 320px;
+        /* narrow enough that the buttons sit beside it rather than wrapping
+           onto a second row, which would cost the views a third of a phone */
+        width: 48vw;
+        max-width: 300px;
         padding: 8px 10px;
         font-size: 13px;
     }
+    body.touch #buttons { padding: 6px; gap: 6px; }
+    body.touch #buttons button { padding: 9px 11px; }
+    body.touch #topbar { gap: 6px; padding: calc(var(--safe-t) + 6px) 6px 6px 6px; }
     body.touch #turn { font-size: 15px; }
 
     /* short screens: a phone held sideways has no room to spare */
     @media (max-height: 520px) {
+        body.touch #status { font-size: 12px; padding: 6px 8px; }
+        body.touch #status #message { display: none; }   /* no room for chatter */
         body.touch #status .groupline { margin-top: 4px; font-size: 11px; }
         body.touch #power { display: none; }
         body.touch #spin { width: 78px; height: 78px; }
@@ -350,6 +389,7 @@
     <div id="caplower" class="cap"></div>
     <div id="seam" title="Drag to give one view more room"></div>
 
+    <div id="topbar">
     <div id="status" class="panel">
         <div id="turn">Player 1</div>
         <div id="message"></div>
@@ -361,6 +401,7 @@
         <button id="swap" title="Swap views (V)">&#8646; <span class="btxt">Swap views</span></button>
         <button id="sound" title="Sound (M)">&#9834;</button>
         <button id="newgame" title="New rack (R)">&#8635; <span class="btxt">New rack</span></button>
+    </div>
     </div>
 
     <div id="controls" class="panel">
@@ -387,11 +428,14 @@
         <div class="group" id="power">
             <div class="label">Power</div>
             <div id="powerbar"><div id="powerfill"></div></div>
+        </div>
+
+        <div class="group" id="keysgroup">
             <div id="keys">
-                <kbd>drag</kbd> aim &middot; <kbd>hold click</kbd> or <kbd>space</kbd> to charge, release to shoot<br>
-                <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound<br>
-                <kbd>[</kbd><kbd>]</kbd> raise the cue for a jump shot<br>
-                drag a panel by its <b>&#8942;&#8942;</b> grip to move it &middot; double tap a grip to put it back &middot; <kbd>L</kbd> resets them all
+                <kbd>drag</kbd> aim &middot; <kbd>hold</kbd> or <kbd>space</kbd> to charge &middot;
+                <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim &middot; <kbd>[</kbd><kbd>]</kbd> raise the cue<br>
+                <kbd>V</kbd> views &middot; <kbd>R</kbd> rack &middot; <kbd>M</kbd> sound &middot;
+                drag a panel by its <b>&#8942;&#8942;</b> grip, <kbd>L</kbd> puts them back
             </div>
         </div>
 
@@ -404,12 +448,12 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=2"></script>
-    <script src="lib/three.js?v=2"></script>
-    <script src="lib/cannon-es.js?v=2"></script>
-    <script src="phys.js?v=2"></script>
-    <script src="ball_skins.js?v=2"></script>
-    <script src="render.js?v=2"></script>
-    <script src="game.js?v=2"></script>
+    <script src="panels.js?v=3"></script>
+    <script src="lib/three.js?v=3"></script>
+    <script src="lib/cannon-es.js?v=3"></script>
+    <script src="phys.js?v=3"></script>
+    <script src="ball_skins.js?v=3"></script>
+    <script src="render.js?v=3"></script>
+    <script src="game.js?v=3"></script>
 </body>
 </html>

@@ -24,7 +24,9 @@ are aiming, and along the direction of travel once the ball is moving — a jump
 shot takes it up with the ball.
 
 They are panes, not a picture in a picture: each owns its own strip of the
-screen and neither covers any part of the other. They divide the space along its
+screen and neither covers any part of the other, nor sits under the panels —
+the score and buttons take a band along the top, the controls take one along the
+bottom, and the views divide up everything in between. They divide the space along its
 longer side, so a landscape window puts them side by side and a tall one stacks
 them, and they only tile what the panels have left rather than running underneath
 the controls. Drag the seam between them to give one more room than the other —
@@ -54,13 +56,11 @@ charge and release to shoot, **space** to charge, **←** **→** to fine aim
 (**shift** for finer), **↑** **↓** and **A**/**D** for follow, draw and english,
 **C** to centre, **V** / **R** / **M** for views, a new rack and sound.
 
-Every panel floats over the cloth, and sooner or later one sits exactly where
-the cue ball is. Drag any of them — the score, the buttons, the controls, even
-the point of view inset — by its grip, or by any part that is not a control, and
-it stays where you put it between sessions. A double tap on a grip puts that one
-back, **L** puts them all back, and a panel parked against an edge still gets
-table space reserved for it, while one floating in the middle simply overlays
-the cloth.
+The panels sit in their own bands rather than on top of the table, so nothing
+covers a shot. Drag one out by its grip and it floats free — and since it is no
+longer taking up a band, the views grow into the space it left. A double tap on
+a grip puts that panel back, **L** puts them all back, and where you left them
+is remembered between sessions.
 
 On a touch screen dragging only ever aims — the shot needs the SHOOT button —
 so you can slide a finger around the table without firing the cue ball across

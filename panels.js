@@ -75,6 +75,8 @@ var Panels = (function () {
             if (opts.onMove) {
                 opts.onMove(p.x, p.y);
             } else {
+                // lift it out of whichever band it was sitting in
+                el.style.position = 'fixed';
                 el.style.left = p.x + 'px';
                 el.style.top = p.y + 'px';
                 el.style.right = 'auto';
@@ -87,6 +89,7 @@ var Panels = (function () {
         function reset() {
             delete placed[key];
             write();
+            el.style.position = '';      // back into its band
             el.style.left = el.style.top = el.style.right = el.style.bottom = '';
             if (opts.onReset) opts.onReset();
         }
@@ -163,6 +166,7 @@ var Panels = (function () {
     function resetAll() {
         registered.forEach(function (entry) {
             delete placed[entry.key];
+            entry.el.style.position = '';
             entry.el.style.left = entry.el.style.top = '';
             entry.el.style.right = entry.el.style.bottom = '';
             entry.el.style.zIndex = '';

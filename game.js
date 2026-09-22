@@ -653,16 +653,30 @@
      * costs them anything; a narrow one, or one dragged into the middle, simply
      * floats over a view - which is what moving it there asked for.
      */
+    /** A panel lifted out of its band is floating, and costs the views nothing. */
+    function docked(el) {
+        return el && !el.style.left;
+    }
+
+    /**
+     * The views get everything the bands leave them. The top band is however
+     * tall the score and the buttons make it, the bottom band is the controls,
+     * and a panel dragged out of either one stops counting.
+     */
     function paneRegion() {
-        var h = window.innerHeight, w = window.innerWidth;
         var top = 0, bottom = 0;
 
-        ['status', 'buttons', 'controls'].forEach(function (id) {
-            var r = document.getElementById(id).getBoundingClientRect();
-            if (r.width < w * 0.35) return;      // a small panel just floats over a view
-            if (h - r.bottom < 40) bottom = Math.max(bottom, h - r.top + 8);
-            else if (r.top < 40) top = Math.max(top, r.bottom + 8);
-        });
+        var bar = document.getElementById('topbar');
+        if (bar) {
+            var band = bar.getBoundingClientRect();
+            if (band.height > 4) top = band.bottom + 6;
+        }
+
+        var controls = document.getElementById('controls');
+        if (docked(controls)) {
+            var r = controls.getBoundingClientRect();
+            bottom = Math.max(0, window.innerHeight - r.top) + 6;
+        }
         return {top: top, bottom: bottom};
     }
 

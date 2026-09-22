@@ -467,8 +467,8 @@ function Renderer(canvas, world) {
         // landscape window gives two panes side by side, a tall one stacks them.
         // A table is half as tall as it is wide, and squeezing it into a wide,
         // short strip wastes most of the room.
-        var top = Math.min(region.top, h * 0.4);
-        var bottom = Math.min(region.bottom, h * 0.4);
+        var top = Math.min(region.top, h * 0.45);
+        var bottom = Math.min(region.bottom, h * 0.45);
         var freeH = Math.max(120, h - top - bottom);
         var sideBySide = w >= freeH;
 
