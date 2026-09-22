@@ -70,6 +70,17 @@ the room. The controls take the bottom of the screen and the table is fitted to
 what is left, rather than being hidden behind them, and a phone held upright
 stands the table on end to fill the screen.
 
+As the window narrows the two bands give things up in the order they can afford
+to lose them, so that what is left stays on one row: the keyboard hints go
+first, since they only repeat what the buttons beside them do; then the button
+labels, which have tooltips; then the power bar, since the SHOOT button fills up
+as it charges; then the group captions; and last the controls come down a size,
+stopping at about 44px, which is as small as anything a thumb has to hit should
+get. Everything on one row down to 360px on a touch screen and 400px with a
+pointer. Below that the bands wrap rather than pushing their ends off the
+screen — unwrapped and centred, they used to leave the aim buttons at a negative
+x where nothing could reach them.
+
 Standard eight ball: break from behind the head string, the table stays open
 until the first ball is potted after the break, then you are on solids or
 stripes, and the 8 goes last. Scratching, hitting the wrong ball first, hitting
