@@ -33,24 +33,38 @@ function arg(name, fallback) {
 
 /* ----------------------------- the data --------------------------- */
 
-/** Every shard in a directory, as one flat array of rows. */
-function load(dir) {
-    var meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
-    if (meta.encoder !== Encode.VERSION) {
-        throw new Error('data was written by encoder v' + meta.encoder +
-            ', this is v' + Encode.VERSION + ' - collect it again');
-    }
+/**
+ * Every shard in one or more directories, as a single flat array of rows.
+ *
+ * More than one because a round of training is usually best done on the round
+ * that produced it *and* the ones before: the older games are worse, but they
+ * visit positions the current player has learned to steer around and would
+ * otherwise never see again.
+ */
+function load(dirs) {
+    if (typeof dirs === 'string') dirs = dirs.split(',');
 
-    var parts = meta.shards.map(function (name) {
-        var buf = fs.readFileSync(path.join(dir, name));
-        return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+    var parts = [], metas = [];
+    dirs.forEach(function (dir) {
+        dir = dir.trim();
+        var meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+        if (meta.encoder !== Encode.VERSION) {
+            throw new Error(dir + ' was written by encoder v' + meta.encoder +
+                ', this is v' + Encode.VERSION + ' - collect it again');
+        }
+        metas.push({dir: dir, turns: meta.turns, racks: meta.racks,
+            player: meta.player || 'baseline bot'});
+        meta.shards.forEach(function (name) {
+            var buf = fs.readFileSync(path.join(dir, name));
+            parts.push(new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4));
+        });
     });
 
     var total = parts.reduce(function (n, p) { return n + p.length; }, 0);
     var rows = new Float32Array(total);
     var at = 0;
     parts.forEach(function (p) { rows.set(p, at); at += p.length; });
-    return {rows: rows, count: total / STRIDE, meta: meta};
+    return {rows: rows, count: total / STRIDE, sources: metas};
 }
 
 /**
@@ -227,6 +241,10 @@ if (require.main !== module) return;
 
     var data = load(dir);
     var parts = split(data, 0.12, 7);
+    data.sources.forEach(function (m) {
+        console.log('  ' + m.dir + ': ' + m.turns + ' turns from ' + m.racks +
+            ' racks of ' + m.player);
+    });
     console.log(data.count + ' turns from ' + parts.racks + ' racks (' +
         parts.train.length + ' to train on, ' + parts.valid.length + ' held back)');
 
