@@ -140,6 +140,8 @@ holding it back.
 | `index.html` | the page |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
+| `train/geometry.js` | ghost ball aiming and the shortlist of pots worth playing |
+| `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
