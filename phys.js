@@ -1,7 +1,7 @@
 /**
- * phys.js - the pool table, simulated with cannon.js.
+ * phys.js - the pool table, simulated with cannon-es.
  *
- * cannon.js does the physics: the balls are rigid spheres with friction against
+ * cannon-es does the physics: the balls are rigid spheres with friction against
  * the cloth, so a ball struck below centre comes back and one struck above it
  * follows through, all out of the contact solver rather than out of any special
  * case here. This file is the table around that - geometry, pockets, the cue
@@ -24,8 +24,8 @@
     'use strict';
 
     var CANNON = root.CANNON;
-    if (!CANNON && typeof require === 'function') CANNON = require('./lib/cannon.js');
-    if (!CANNON) throw new Error('phys.js needs cannon.js to be loaded first');
+    if (!CANNON && typeof require === 'function') CANNON = require('./lib/cannon-es.js');
+    if (!CANNON) throw new Error('phys.js needs cannon-es to be loaded first');
 
     var Phys = {};
 
@@ -477,10 +477,11 @@
         var reach = Math.sqrt(Math.max(0, 1 - side * side - vert * vert));
         var r = ball.radius, body = ball.body;
 
+        // where the tip meets the ball, as an offset from its centre
         var tip = new CANNON.Vec3(
-            body.position.x + (sx * side - dx * reach) * r,
-            body.position.y + vert * r,
-            body.position.z + (sz * side - dz * reach) * r
+            (sx * side - dx * reach) * r,
+            vert * r,
+            (sz * side - dz * reach) * r
         );
 
         body.wakeUp();

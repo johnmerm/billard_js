@@ -68,7 +68,7 @@ hand. The 8 on the break is spotted rather than losing the game.
 
 | file | what it does |
 |---|---|
-| `phys.js` | the table: builds it out of cannon.js bodies, strikes the cue ball, reports what happened |
+| `phys.js` | the table: builds it out of cannon-es bodies, strikes the cue ball, reports what happened |
 | `render.js` | the three.js scene and the two cameras |
 | `game.js` | rules, input, HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
@@ -76,14 +76,22 @@ hand. The 8 on the break is spotted rather than losing the game.
 | `index.html` | the page |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
 
-`lib/cannon.js` is cannon.js 0.6.2 and `lib/three.js` is three.js r68, both
-vendored, both MIT. `lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`,
-`draw.js` and `ball_textures.js` belong to the old `demo.html` prototype and
-are untouched.
+| `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
+
+`lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
+MIT. Both ship as ES modules only these days, and a browser will not load a
+module over `file://`, which would have meant running a local server just to
+open the game. So they are vendored as plain scripts that define `THREE` and
+`CANNON`, bundled with esbuild by `tools/bundle-libs.sh`. Nothing here needs a
+build step to run — the script is only for pulling in a newer version of either
+library.
+
+`lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`, `draw.js` and
+`ball_textures.js` belong to the old `demo.html` prototype and are untouched.
 
 ## About the physics
 
-cannon.js runs the simulation. The balls are rigid spheres with friction against
+cannon-es runs the simulation. The balls are rigid spheres with friction against
 the cloth, and the cue strike is an impulse applied off centre, so draw, follow,
 stun and english are not special cases anywhere in this repo — they fall out of
 where the tip meets the ball. Hit it below centre and it comes back; hit it above

@@ -6,7 +6,7 @@
  * the point of view shot. Either can be the big picture; the other becomes an
  * inset, so you can line a shot up from above and still watch it from the ball.
  *
- * Coordinates: cannon.js and three.js share a frame here - y up, origin in the
+ * Coordinates: cannon-es and three.js share a frame here - y up, origin in the
  * middle of the table - so ball bodies copy straight onto meshes. The game's
  * table coordinates (x along the length, y across the width, both from a
  * corner) are converted the same way phys.js does it: (x - W/2, h, -(y - H/2)).
@@ -25,24 +25,23 @@ function Renderer(canvas, world) {
 
     /* --------------------------- scene -------------------------------- */
 
-    var renderer = new THREE.WebGLRenderer({
-        canvas: canvas,
-        antialias: true,
-        devicePixelRatio: window.devicePixelRatio || 1
-    });
+    var renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true});
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setClearColor(0x0a0d10, 1);
 
     var scene = new THREE.Scene();
 
-    scene.add(new THREE.AmbientLight(0x33383f));
+    scene.add(new THREE.AmbientLight(0x33383f, 2.2));
 
-    var key = new THREE.DirectionalLight(0xffffff, 0.35);
+    var key = new THREE.DirectionalLight(0xffffff, 0.9);
     key.position.set(0.4, 2.0, 0.8);
     scene.add(key);
 
-    // two lamps hung over the table, the way a real one is lit
+    // Two lamps hung over the table, the way a real one is lit. Their strength
+    // is in candela and falls off with the square of the distance, so the
+    // numbers are much larger than they were under the old lighting model.
     [-W * 0.24, W * 0.24].forEach(function (lx) {
-        var lamp = new THREE.PointLight(0xfff1dc, 0.6, 3.2);
+        var lamp = new THREE.PointLight(0xfff1dc, 2.6, 3.2);
         lamp.position.set(lx, 0.8, 0);
         scene.add(lamp);
     });
@@ -60,9 +59,11 @@ function Renderer(canvas, world) {
     }
 
     // the room, so the point of view shot has somewhere to look
+    // unlit on purpose: it is a backdrop, and a lit one this far from the
+    // lamps just reads as black from the cue ball's eye line
     var room = new THREE.Mesh(
         new THREE.BoxGeometry(14, 5, 14),
-        new THREE.MeshPhongMaterial({color: 0x20262e, side: THREE.BackSide, shininess: 0})
+        new THREE.MeshBasicMaterial({color: 0x252b34, side: THREE.BackSide})
     );
     room.position.y = 5 / 2 - 0.85;
     scene.add(room);
@@ -118,9 +119,10 @@ function Renderer(canvas, world) {
 
     // head string and foot spot, the markings you aim off
     var lineMat = new THREE.LineBasicMaterial({color: 0xbfd8c6, opacity: 0.35, transparent: true});
-    var hs = new THREE.Geometry();
-    hs.vertices.push(new THREE.Vector3(W * 0.25 - W / 2, 0.005, -H / 2));
-    hs.vertices.push(new THREE.Vector3(W * 0.25 - W / 2, 0.005, H / 2));
+    var hs = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(W * 0.25 - W / 2, 0.005, -H / 2),
+        new THREE.Vector3(W * 0.25 - W / 2, 0.005, H / 2)
+    ]);
     scene.add(new THREE.Line(hs, lineMat));
 
     var spot = new THREE.Mesh(
@@ -139,9 +141,9 @@ function Renderer(canvas, world) {
 
     var meshes = {}, shadows = {};
     world.balls.forEach(function (ball) {
-        var texture = new THREE.Texture(BallSkins.canvas(ball.id));
-        texture.needsUpdate = true;
-        if (renderer.getMaxAnisotropy) texture.anisotropy = renderer.getMaxAnisotropy();
+        var texture = new THREE.CanvasTexture(BallSkins.canvas(ball.id));
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
         var mesh = new THREE.Mesh(ballGeom, new THREE.MeshPhongMaterial({
             map: texture, shininess: 80, specular: 0x555555
@@ -179,11 +181,12 @@ function Renderer(canvas, world) {
     // aiming guide: cue ball path, ghost ball at contact, and the two lines the
     // balls take away from it
     function guideLine(color, opacity) {
-        var g = new THREE.Geometry();
-        g.vertices.push(new THREE.Vector3(), new THREE.Vector3());
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
         var line = new THREE.Line(g, new THREE.LineBasicMaterial({
             color: color, transparent: true, opacity: opacity
         }));
+        line.frustumCulled = false;      // the ends move every frame
         scene.add(line);
         return line;
     }
@@ -287,10 +290,10 @@ function Renderer(canvas, world) {
     };
 
     function setLine(line, x1, y1, x2, y2, height) {
-        line.geometry.vertices[0].set(x1 - W / 2, height, -(y1 - H / 2));
-        line.geometry.vertices[1].set(x2 - W / 2, height, -(y2 - H / 2));
-        line.geometry.verticesNeedUpdate = true;
-        line.geometry.computeBoundingSphere();
+        var p = line.geometry.attributes.position;
+        p.setXYZ(0, x1 - W / 2, height, -(y1 - H / 2));
+        p.setXYZ(1, x2 - W / 2, height, -(y2 - H / 2));
+        p.needsUpdate = true;
     }
 
     /**
@@ -418,7 +421,7 @@ function Renderer(canvas, world) {
         var mainCam = swapped ? povCamera : topCamera;
         var insetCam = swapped ? topCamera : povCamera;
 
-        renderer.enableScissorTest(true);
+        renderer.setScissorTest(true);
 
         // main view
         if (mainCam === topCamera) fitTopCamera(main.w, main.h);
@@ -430,7 +433,7 @@ function Renderer(canvas, world) {
         else { povCamera.aspect = inset.w / inset.h; povCamera.updateProjectionMatrix(); }
         drawView(insetCam, inset, h);
 
-        renderer.enableScissorTest(false);
+        renderer.setScissorTest(false);
 
         return {
             table: swapped ? inset : main,
