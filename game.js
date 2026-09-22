@@ -92,7 +92,12 @@
     function newGame() {
         if (!world) {
             buildWorld();
-            view = new Renderer(document.getElementById('scene'), world);
+            try {
+                view = new Renderer(document.getElementById('scene'), world);
+            } catch (err) {
+                noWebGL(err);
+                return false;
+            }
         }
         rack();
         state.phase = 'ballInHand';
@@ -111,6 +116,7 @@
 
         drawSpinWidget();
         updateHud();
+        return true;
     }
 
     /* ------------------------------------------------------------------ *
@@ -843,6 +849,24 @@
     /* ------------------------------------------------------------------ */
 
     /**
+     * Without WebGL there is nothing to draw into. That is a browser setting or
+     * a driver, not something this page can work around, so say what happened
+     * and what usually fixes it rather than leaving a blank window.
+     */
+    function noWebGL(err) {
+        var banner = document.createElement('div');
+        banner.id = 'stale';
+        banner.innerHTML =
+            '<b>This browser could not start WebGL</b>, so the table cannot be drawn.<br><br>' +
+            'It is usually turned off rather than missing: look at <b>chrome://gpu</b>, ' +
+            'switch on <i>use hardware acceleration when available</i> in the browser\u2019s ' +
+            'settings, or try another browser.<br><br>' +
+            '<span style="opacity:0.7">' + (err && err.message ? err.message : err) + '</span>';
+        document.body.appendChild(banner);
+        if (window.console) window.console.error('billiards: no WebGL context', err);
+    }
+
+    /**
      * The page and its scripts have to be the same vintage. A browser or a cdn
      * that pairs a fresh index.html with a stale render.js leaves a blank canvas
      * and a console message nobody reads, so say it on the page instead.
@@ -928,7 +952,7 @@
             if (e.pointerType === 'touch') markTouch();
         }, true);
 
-        newGame();
+        if (!newGame()) return;            // no WebGL: the banner says so
         if (!checkVersions()) return;      // nothing below would work anyway
         initPanels();
         initSeam();
