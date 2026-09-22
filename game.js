@@ -92,11 +92,21 @@
     function newGame() {
         if (!world) {
             buildWorld();
+            var canvas = document.getElementById('scene');
             try {
-                view = new Renderer(document.getElementById('scene'), world);
+                view = new Renderer(canvas, world);
             } catch (err) {
-                noWebGL(err);
-                return false;
+                // No WebGL: hardware acceleration switched off, a blocklisted
+                // driver, or a browser that has stopped falling back to
+                // software WebGL on its own. The game still plays - it just
+                // gets the flat table and loses the cue ball's eye view.
+                try {
+                    view = new Renderer2D(canvas, world);
+                } catch (flatErr) {
+                    noWebGL(err);
+                    return false;
+                }
+                flatMode(err);
             }
         }
         rack();
@@ -331,7 +341,7 @@
 
     /** True if the pointer is over the cue ball's pane rather than the table's. */
     function insetHit(e) {
-        if (!rects) return false;
+        if (!rects || view.flat) return false;
         var box = document.getElementById('scene').getBoundingClientRect();
         var r = rects.pov;
         var x = e.clientX - box.left, y = e.clientY - box.top;
@@ -710,6 +720,11 @@
         }
         caption(document.getElementById('capupper'), upper,
             view.isSwapped() ? 'CUE BALL' : 'TABLE');
+        if (view.flat) {
+            // one pane, so the lower caption and the seam have nothing to label
+            // or to divide; the stylesheet has already taken them out of the way
+            return;
+        }
         caption(document.getElementById('caplower'), lower,
             view.isSwapped() ? 'TABLE' : 'CUE BALL');
 
@@ -849,9 +864,38 @@
     /* ------------------------------------------------------------------ */
 
     /**
-     * Without WebGL there is nothing to draw into. That is a browser setting or
-     * a driver, not something this page can work around, so say what happened
-     * and what usually fixes it rather than leaving a blank window.
+     * WebGL would not start, so the game is running on the flat renderer. Say
+     * so once, plainly, rather than letting the simpler picture look like a
+     * bug - and say what usually brings the proper one back.
+     */
+    function flatMode(err) {
+        document.body.classList.add('flat');
+
+        var note = document.createElement('div');
+        note.id = 'flatnote';
+        note.innerHTML = '<b>Running without WebGL.</b> The table is drawn flat and the ' +
+            'cue ball view is off; the physics, the rules and every control are the same.' +
+            '<br><span style="opacity:0.7">To get the 3d table back, turn on ' +
+            '<i>use graphics acceleration when available</i> in the browser\u2019s settings ' +
+            'and restart it, or see <b>chrome://gpu</b>.</span>' +
+            '<button type="button" id="flatclose" title="Dismiss">\u00d7</button>';
+        document.body.appendChild(note);
+
+        function dismiss() {
+            if (note.parentNode) note.parentNode.removeChild(note);
+        }
+        var close = document.getElementById('flatclose');
+        if (close) close.addEventListener('click', dismiss);
+        window.setTimeout(dismiss, 15000);      // said once, then out of the way
+
+        if (window.console) window.console.warn('billiards: flat renderer', err);
+    }
+
+    /**
+     * Neither renderer would start: no WebGL, and no 2d canvas to fall back on
+     * either. That is a browser setting or a driver, not something this page can
+     * work around, so say what happened and what usually fixes it rather than
+     * leaving a blank window.
      */
     function noWebGL(err) {
         var has = function (kind) {
@@ -864,24 +908,14 @@
         var webgl2 = has('webgl2');
         var webgl1 = has('webgl') || has('experimental-webgl');
 
-        var why;
-        if (webgl1 && !webgl2) {
-            // three.js has been WebGL 2 only since r163, and this page used to
-            // run on a much older build that was happy with WebGL 1
-            why = '<b>This browser has WebGL 1 but not WebGL 2</b>, and the three.js ' +
-                'build here needs WebGL 2.<br><br>Try <b>chrome://flags</b> and look for ' +
-                'WebGL 2, or check <b>chrome://gpu</b> to see what is holding it back. ' +
-                'If it cannot be turned on, say so and the game can ship a build that ' +
-                'runs on WebGL 1.';
-        } else if (!webgl1 && !webgl2) {
-            why = '<b>This browser could not start WebGL at all</b>, so the table cannot ' +
-                'be drawn.<br><br>It is usually switched off rather than missing: look at ' +
-                '<b>chrome://gpu</b>, turn on <i>use hardware acceleration when available</i> ' +
-                'in the browser\u2019s settings and restart it, or try another browser.';
-        } else {
-            why = '<b>WebGL started but the renderer would not.</b> The browser\u2019s own ' +
-                'reason is below; a restart of the browser clears most of these.';
-        }
+        // The flat renderer has already been tried by the time we get here, so
+        // this is a browser that will not draw into a canvas at all.
+        var why = '<b>This browser will not draw into a canvas</b>, so there is nowhere ' +
+            'to put the table.<br><br>WebGL is usually switched off rather than missing: ' +
+            'look at <b>chrome://gpu</b>, turn on <i>use graphics acceleration when ' +
+            'available</i> in the browser\u2019s settings and restart it. If the 2d canvas ' +
+            'is blocked too, an extension or a policy is switching it off; try another ' +
+            'browser, or the same one without extensions.';
 
         var banner = document.createElement('div');
         banner.id = 'stale';
@@ -928,6 +962,7 @@
 
     /** Drag the seam between the two views to give one of them more room. */
     function initSeam() {
+        if (view.flat) return;              // a single pane has no seam
         var seam = document.getElementById('seam');
         if (!seam) return;
         var dragging = false;

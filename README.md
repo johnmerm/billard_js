@@ -89,18 +89,36 @@ shadow is what gives it away: it slides out from under the ball and fades as the
 ball climbs. The view from the cue ball rides the real height, so a jump takes
 you up with it.
 
+## Without WebGL
+
+Some browsers will not start WebGL: hardware acceleration is switched off, the
+driver is blocklisted, or the browser has stopped quietly falling back to
+software WebGL the way Chrome used to. Rather than a blank window, the game
+drops to `render2d.js` and draws the table flat on an ordinary 2d canvas —
+coloured discs on green cloth, with the cue, the aiming guides, the ghost ball,
+the shadows that give a jumping ball away and the ball in hand marker all still
+there. The physics, the rules and every control are exactly the same; the cue
+ball's point of view is the one thing that goes, since it needs a perspective
+camera, so the page drops to a single pane and says so once in a banner.
+
+Nothing has to be configured for this. If WebGL comes back, so does the 3d
+table. To get it back in Chrome, turn on *use graphics acceleration when
+available* in the settings and restart, or look at `chrome://gpu` to see what is
+holding it back.
+
 ## What is where
 
 | file | what it does |
 |---|---|
 | `phys.js` | the table: builds it out of cannon-es bodies, strikes the cue ball, reports what happened |
 | `render.js` | the three.js scene and the two cameras |
+| `render2d.js` | the flat table, for browsers that will not start WebGL |
 | `game.js` | rules, input, HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |
 | `index.html` | the page |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
-
+| `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both

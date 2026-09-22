@@ -283,6 +283,47 @@
         z-index: 50;
     }
 
+    /* ------------------------------------------------- no webgl, flat table */
+
+    /* One pane, so the things that divide two of them have nothing to do. */
+    body.flat #seam,
+    body.flat #caplower,
+    body.flat #swap { display: none; }
+
+    #flatnote {
+        position: fixed;
+        left: 50%;
+        bottom: auto;
+        top: 8px;
+        transform: translateX(-50%);
+        max-width: 34em;
+        font-size: 12px;
+        line-height: 1.55;
+        text-align: center;
+        background: rgba(30, 44, 62, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        padding: 10px 34px 10px 14px;
+        z-index: 40;
+    }
+
+    #flatclose {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        font-size: 15px;
+        line-height: 1;
+        background: transparent;
+        border: 0;
+        color: rgba(255, 255, 255, 0.55);
+        cursor: pointer;
+    }
+
+    #flatclose:hover { color: #fff; }
+
     /* ------------------------------------------------------ pov inset */
 
     /* the two views are panes, not a picture in a picture: each one owns its
@@ -448,12 +489,13 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=5"></script>
-    <script src="lib/three.js?v=5"></script>
-    <script src="lib/cannon-es.js?v=5"></script>
-    <script src="phys.js?v=5"></script>
-    <script src="ball_skins.js?v=5"></script>
-    <script src="render.js?v=5"></script>
-    <script src="game.js?v=5"></script>
+    <script src="panels.js?v=6"></script>
+    <script src="lib/three.js?v=6"></script>
+    <script src="lib/cannon-es.js?v=6"></script>
+    <script src="phys.js?v=6"></script>
+    <script src="ball_skins.js?v=6"></script>
+    <script src="render.js?v=6"></script>
+    <script src="render2d.js?v=6"></script>
+    <script src="game.js?v=6"></script>
 </body>
 </html>
