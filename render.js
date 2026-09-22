@@ -215,6 +215,7 @@ function Renderer(canvas, world) {
     var portrait = false;    // tall viewport: stand the table on end
     var insetEdge = 'bottom';    // which edge the inset hangs from
     var insetOffset = 0;         // and how far in, to clear the page's panels
+    var insetPos = null;         // or wherever it was dragged to
 
     /**
      * Fit the table into the part of the view the page has left free, then open
@@ -363,6 +364,11 @@ function Renderer(canvas, world) {
      * Hang the inset from the top or the bottom of the canvas, `offset` pixels
      * in, so the page can keep it clear of its own panels.
      */
+    /** Pin the inset at a canvas position, or pass null to let it dock again. */
+    this.setInsetPosition = function (x, y) {
+        insetPos = (x === null || x === undefined) ? null : {x: x, y: y};
+    };
+
     this.setInsetPlacement = function (edge, offset) {
         insetEdge = edge === 'top' ? 'top' : 'bottom';
         insetOffset = offset || 0;
@@ -403,6 +409,10 @@ function Renderer(canvas, world) {
             ? Math.max(pad, insetOffset)
             : Math.max(pad, h - insetH - pad - insetOffset);
         var inset = {x: w - insetW - pad, y: insetY, w: insetW, h: insetH};
+        if (insetPos) {
+            inset.x = Math.max(0, Math.min(insetPos.x, w - insetW));
+            inset.y = Math.max(0, Math.min(insetPos.y, h - insetH));
+        }
         var main = {x: 0, y: 0, w: w, h: h};
 
         var mainCam = swapped ? povCamera : topCamera;

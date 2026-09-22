@@ -57,8 +57,10 @@
     #status {
         top: calc(var(--pad) + var(--safe-t));
         left: calc(var(--pad) + var(--safe-l));
-        min-width: 250px;
-        max-width: 34vw;
+        /* a fixed width: the panel is draggable, and one that resized itself
+           every time the message changed would shift under your finger */
+        width: 320px;
+        max-width: calc(100vw - 2 * var(--pad));
     }
 
     #turn { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
@@ -195,11 +197,37 @@
     #shoot span.cap { position: relative; }
     #shoot:disabled { opacity: 0.35; }
 
+    /* ----------------------------------------------- moving panels */
+
+    .grip {
+        position: absolute;
+        top: 1px;
+        right: 3px;
+        width: 26px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 13px;
+        letter-spacing: -3px;
+        cursor: grab;
+        touch-action: none;
+    }
+    .grip:hover { color: var(--ink); }
+    body.touch .grip { width: 36px; height: 30px; font-size: 15px; }
+
+    .dragging {
+        cursor: grabbing;
+        border-color: rgba(255, 255, 255, 0.5);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
     /* ------------------------------------------------------ pov inset */
 
     #insetframe {
         position: fixed;
-        pointer-events: none;
+        touch-action: none;
         border: 1px solid rgba(255, 255, 255, 0.35);
         border-radius: 6px;
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
@@ -229,8 +257,8 @@
     body.touch button { padding: 11px 13px; font-size: 16px; }
 
     body.touch #status {
-        max-width: 52vw;
-        min-width: 0;
+        width: 58vw;
+        max-width: 320px;
         padding: 8px 10px;
         font-size: 13px;
     }
@@ -255,7 +283,7 @@
 </head>
 <body>
     <canvas id="scene"></canvas>
-    <div id="insetframe"></div>
+    <div id="insetframe"><span id="insetlabel"></span></div>
 
     <div id="status" class="panel">
         <div id="turn">Player 1</div>
@@ -289,7 +317,8 @@
             <div id="powerbar"><div id="powerfill"></div></div>
             <div id="keys">
                 <kbd>drag</kbd> aim &middot; <kbd>hold click</kbd> or <kbd>space</kbd> to charge, release to shoot<br>
-                <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound
+                <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound<br>
+                drag a panel by its <b>&#8942;&#8942;</b> grip to move it &middot; double tap a grip to put it back &middot; <kbd>L</kbd> resets them all
             </div>
         </div>
 
@@ -300,6 +329,7 @@
         </div>
     </div>
 
+    <script src="panels.js"></script>
     <script src="lib/three.js"></script>
     <script src="lib/cannon.js"></script>
     <script src="phys.js"></script>

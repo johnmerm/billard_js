@@ -37,11 +37,20 @@ with a keyboard.
 | the spin dial | drag the tip around the cue ball; double click to centre it |
 | the small view | tap it to bring it up front |
 | the top right buttons | swap views, sound, new rack |
+| the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 
 On a mouse the old habits still work: hold the button down on the table to
 charge and release to shoot, **space** to charge, **←** **→** to fine aim
 (**shift** for finer), **↑** **↓** and **A**/**D** for follow, draw and english,
 **C** to centre, **V** / **R** / **M** for views, a new rack and sound.
+
+Every panel floats over the cloth, and sooner or later one sits exactly where
+the cue ball is. Drag any of them — the score, the buttons, the controls, even
+the point of view inset — by its grip, or by any part that is not a control, and
+it stays where you put it between sessions. A double tap on a grip puts that one
+back, **L** puts them all back, and a panel parked against an edge still gets
+table space reserved for it, while one floating in the middle simply overlays
+the cloth.
 
 On a touch screen dragging only ever aims — the shot needs the SHOOT button —
 so you can slide a finger around the table without firing the cue ball across
@@ -63,6 +72,7 @@ hand. The 8 on the break is spotted rather than losing the game.
 | `render.js` | the three.js scene and the two cameras |
 | `game.js` | rules, input, HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
+| `panels.js` | makes the heads up panels draggable, and remembers where they went |
 | `index.html` | the page |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
 

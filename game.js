@@ -28,7 +28,8 @@
         vert: 0,
         message: 'Break them up: place the cue ball behind the line and fire.',
         pocketed: [],
-        ghost: null                 // cue ball position while placing it
+        ghost: null,                // cue ball position while placing it
+        insetPos: null              // where the inset was dragged to, if anywhere
     };
 
     var shot = null;
@@ -485,6 +486,9 @@
             case 'KeyR':
                 newGame();
                 break;
+            case 'KeyL':
+                Panels.resetAll();      // panels back to their corners
+                break;
         }
     }
 
@@ -608,20 +612,39 @@
      * layout, where the controls own the bottom of the screen, and above the
      * controls otherwise.
      */
-    function placeInset() {
-        var controls = document.getElementById('controls').getBoundingClientRect();
-        var fromBottom = Math.max(0, window.innerHeight - controls.top) + 10;
+    /**
+     * Reserve table space only for panels still parked against an edge and wide
+     * enough to matter. Drag one into the middle of the screen and it simply
+     * floats over the cloth - that was the point of moving it.
+     */
+    function dockedInsets() {
+        var insets = {top: 0, bottom: 0, left: 0, right: 0};
+        var w = window.innerWidth, h = window.innerHeight;
 
-        if (document.body.classList.contains('touch')) {
-            var bar = document.getElementById('buttons').getBoundingClientRect();
-            view.setInsetPlacement('top', bar.bottom + 10);
-            // the control bar owns the bottom of a touch screen, so keep the
-            // table above it rather than behind it
-            view.setTableInsets({bottom: fromBottom});
+        ['status', 'buttons', 'controls'].forEach(function (id) {
+            var r = document.getElementById(id).getBoundingClientRect();
+            if (r.width < w * 0.6) return;                 // narrow panels just overlay
+            if (h - r.bottom < 40) insets.bottom = Math.max(insets.bottom, h - r.top + 10);
+            else if (r.top < 40) insets.top = Math.max(insets.top, r.bottom + 10);
+        });
+        return insets;
+    }
+
+    function placeInset() {
+        if (state.insetPos) {
+            view.setInsetPosition(state.insetPos.x, state.insetPos.y);
         } else {
-            view.setInsetPlacement('bottom', window.innerWidth < 900 ? fromBottom : 0);
-            view.setTableInsets({});
+            view.setInsetPosition(null);
+            if (document.body.classList.contains('touch')) {
+                var bar = document.getElementById('buttons').getBoundingClientRect();
+                view.setInsetPlacement('top', bar.bottom + 10);
+            } else {
+                var controls = document.getElementById('controls').getBoundingClientRect();
+                view.setInsetPlacement('bottom', window.innerWidth < 900
+                    ? Math.max(0, window.innerHeight - controls.top) + 10 : 0);
+            }
         }
+        view.setTableInsets(dockedInsets());
     }
 
     function positionInsetFrame() {
@@ -632,7 +655,8 @@
         frame.style.top = r.y + 'px';
         frame.style.width = r.w + 'px';
         frame.style.height = r.h + 'px';
-        frame.textContent = view.isSwapped() ? 'TABLE' : 'CUE BALL POV';
+        document.getElementById('insetlabel').textContent =
+            view.isSwapped() ? 'TABLE' : 'CUE BALL POV';
     }
 
     /* ------------------------------------------------------------------ *
@@ -729,6 +753,21 @@
 
     /* ------------------------------------------------------------------ */
 
+    /** Every panel can be dragged clear of the shot, the inset included. */
+    function initPanels() {
+        Panels.register(document.getElementById('status'), 'status');
+        Panels.register(document.getElementById('buttons'), 'buttons');
+        Panels.register(document.getElementById('controls'), 'controls');
+        Panels.register(document.getElementById('insetframe'), 'inset', {
+            onMove: function (x, y) {
+                var box = document.getElementById('scene').getBoundingClientRect();
+                state.insetPos = {x: x - box.left, y: y - box.top};
+            },
+            onReset: function () { state.insetPos = null; },
+            onTap: function () { view.swapViews(); }    // a tap still brings it up front
+        });
+    }
+
     /** A touch anywhere means thumbs, not a mouse: show the bigger controls. */
     function markTouch() {
         document.body.classList.add('touch');
@@ -742,6 +781,7 @@
         }, true);
 
         newGame();
+        initPanels();
 
         var canvas = document.getElementById('scene');
         canvas.addEventListener('pointerdown', onPointerDown);
