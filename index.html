@@ -325,11 +325,17 @@
 
     #flatclose:hover { color: #fff; }
 
-    /* the AI button carries its own state: off, thinking about it, or on */
+    /* the AI button carries its own state: off, fetching, one seat, or both */
     #ai.on {
         background: rgba(127, 208, 255, 0.18);
         border-color: rgba(127, 208, 255, 0.55);
         color: #dff1ff;
+    }
+
+    #ai.both {
+        background: rgba(255, 211, 92, 0.2);
+        border-color: rgba(255, 211, 92, 0.6);
+        color: #ffeec2;
     }
 
     #ai.loading {
@@ -521,7 +527,7 @@
     <div id="buttons" class="panel">
         <button id="swap" title="Swap views (V)">&#8646; <span class="btxt">Swap views</span></button>
         <button id="sound" title="Sound (M)">&#9834;</button>
-        <button id="ai" title="Let the trained network play player 2 (A)">&#9673; <span class="btxt">AI opponent</span></button>
+        <button id="ai" title="Let the network play player 2 (B)">&#9673; <span class="btxt">AI opponent</span></button>
         <button id="dock" title="Put every panel back in its band (L)">&#8615; <span class="btxt">Dock panels</span></button>
         <button id="newgame" title="New rack (R)">&#8635; <span class="btxt">New rack</span></button>
     </div>
@@ -557,7 +563,7 @@
             <div id="keys">
                 <kbd>drag</kbd> aim &middot; <kbd>hold</kbd> or <kbd>space</kbd> to charge &middot;
                 <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim &middot; <kbd>[</kbd><kbd>]</kbd> raise the cue<br>
-                <kbd>V</kbd> views &middot; <kbd>R</kbd> rack &middot; <kbd>M</kbd> sound &middot;
+                <kbd>V</kbd> views &middot; <kbd>B</kbd> ai &middot; <kbd>R</kbd> rack &middot; <kbd>M</kbd> sound &middot;
                 drag a panel by its <b>&#8942;&#8942;</b> grip, <kbd>L</kbd> puts them back
             </div>
         </div>
@@ -571,20 +577,20 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=12"></script>
-    <script src="lib/three.js?v=12"></script>
-    <script src="lib/cannon-es.js?v=12"></script>
-    <script src="phys.js?v=12"></script>
-    <script src="rules.js?v=12"></script>
-    <script src="ball_skins.js?v=12"></script>
-    <script src="render.js?v=12"></script>
-    <script src="render2d.js?v=12"></script>
-    <script src="train/geometry.js?v=12"></script>
-    <script src="train/match.js?v=12"></script>
-    <script src="train/bot.js?v=12"></script>
-    <script src="train/encode.js?v=12"></script>
-    <script src="train/player.js?v=12"></script>
-    <script src="ai.js?v=12"></script>
-    <script src="game.js?v=12"></script>
+    <script src="panels.js?v=13"></script>
+    <script src="lib/three.js?v=13"></script>
+    <script src="lib/cannon-es.js?v=13"></script>
+    <script src="phys.js?v=13"></script>
+    <script src="rules.js?v=13"></script>
+    <script src="ball_skins.js?v=13"></script>
+    <script src="render.js?v=13"></script>
+    <script src="render2d.js?v=13"></script>
+    <script src="train/geometry.js?v=13"></script>
+    <script src="train/match.js?v=13"></script>
+    <script src="train/bot.js?v=13"></script>
+    <script src="train/encode.js?v=13"></script>
+    <script src="train/player.js?v=13"></script>
+    <script src="ai.js?v=13"></script>
+    <script src="game.js?v=13"></script>
 </body>
 </html>

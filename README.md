@@ -48,7 +48,7 @@ with a keyboard.
 | the cue ball pane | tap it to swap the two views |
 | the seam between the views | drag it to give one of them more room |
 | the top right buttons | swap views, sound, AI opponent, dock panels, new rack |
-| **AI opponent**, or **A** | hand player 2 to the trained network |
+| **AI opponent**, or **B** | one click hands player 2 to the network, two hands it both seats, three switches it off |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 | ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |
 
@@ -280,8 +280,15 @@ a static file like everything else.
 
 ### Playing against it
 
-**AI opponent** in the top right, or **A**, hands player 2 to the trained
-network. It plays the same code the trainer does — `geometry.js` finds the pots,
+**AI opponent** in the top right, or **B**, hands player 2 to the trained
+network. Click it again and it takes both seats: the game plays itself, racking
+up again a few seconds after each one finishes, which is the easiest way to see
+what it has learned. A third click hands the table back.
+
+While the network has a seat, the cloth, the buttons, the spin dial and the shot
+keys are all ignored for that turn — a stray click cannot take the shot for it.
+
+It plays the same code the trainer does — `geometry.js` finds the pots,
 `match.js` plays each one out in the physics, `encode.js` describes what it
 leaves behind and the network says how much it likes that — so what you play
 against is exactly what was measured, not a reimplementation of it.

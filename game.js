@@ -32,7 +32,8 @@
         pocketed: [],
         ghost: null,                // cue ball position while placing it
         split: 0.62,                // how much of the screen the upper view gets
-        ai: 0                       // which player the trained network plays, or 0 for nobody
+        ai: 0                       // seats the network plays: 1 is player 1, 2 is
+                                    // player 2, 3 is both, 0 is nobody
     };
 
     var shot = null;
@@ -269,6 +270,8 @@
             return;
         }
 
+        if (!humanTurn()) return;        // the network has this one
+
         var p = pointerPos(e);
         if (state.phase === 'ballInHand') {
             if (p) {
@@ -291,6 +294,7 @@
 
     function onPointerMove(e) {
         if (e.pointerType !== 'mouse' && !dragging) return;
+        if (!humanTurn()) return;
         var p = pointerPos(e);
         if (!p) return;
         if (state.phase === 'ballInHand') state.ghost = p;
@@ -309,7 +313,7 @@
     }
 
     function startCharge(pointerId) {
-        if (state.phase !== 'aiming') return;
+        if (state.phase !== 'aiming' || !humanTurn()) return;
         state.phase = 'charging';
         state.chargeStart = performance.now();
         state.power = MIN_POWER;
@@ -362,6 +366,7 @@
     var nudge = {dir: 0, since: 0, last: 0};
 
     function startNudge(dir) {
+        if (!humanTurn()) return;
         nudge.dir = dir;
         nudge.since = nudge.last = performance.now();
         state.angle += dir * 0.0016;      // about a twentieth of a degree
@@ -386,8 +391,16 @@
         state.angle += nudge.dir * Math.min(0.35 + (held - 0.2) * 1.2, 1.4) * dt;
     }
 
+    // keys that change the shot rather than the page: ignored while the network
+    // is at the table, the same as a click on the cloth
+    var SHOT_KEYS = {
+        Space: 1, ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1,
+        KeyA: 1, KeyD: 1, KeyC: 1, BracketLeft: 1, BracketRight: 1
+    };
+
     function onKeyDown(e) {
         if (e.repeat && e.code !== 'ArrowLeft' && e.code !== 'ArrowRight') return;
+        if (SHOT_KEYS[e.code] && !humanTurn()) return;
         switch (e.code) {
             case 'Space':
                 e.preventDefault();
@@ -428,8 +441,8 @@
             case 'KeyV':
                 view.swapViews();
                 break;
-            case 'KeyA':
-                toggleAI();
+            case 'KeyB':
+                toggleAI();             // A and D are already english
                 break;
             case 'KeyM':
                 Sound.toggle();
@@ -666,9 +679,23 @@
      * the shot is played on whichever frame the answer arrives. The table goes
      * on drawing throughout, which is the whole reason it is arranged this way.
      */
+    /** Is the network playing this seat? */
+    function aiPlays(player) {
+        return !!(state.ai & (1 << player));
+    }
+
+    /**
+     * Is the table the person's to play right now? Everything a player does -
+     * aiming, charging, putting the ball down - goes through this, so that a
+     * stray click during the network's turn cannot take the shot for it.
+     */
+    function humanTurn() {
+        return !aiPlays(state.player);
+    }
+
     function playAI() {
         if (!state.ai || typeof AI === 'undefined' || !AI.ready()) return;
-        if (state.player !== state.ai - 1) { AI.cancel(); return; }
+        if (!aiPlays(state.player)) { AI.cancel(); return; }
         if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
 
         if (!AI.busy()) {
@@ -707,43 +734,68 @@
         }
     }
 
+    // Off, then the network takes player 2, then it takes both seats and the
+    // game plays itself. A fourth click is back to off.
+    var AI_SEATS = [
+        {seats: 0, label: 'AI opponent',
+            title: 'Let the network play player 2 (B)'},
+        {seats: 2, label: 'AI: player 2',
+            title: 'The network is playing player 2. Click again and it plays both (B)'},
+        {seats: 3, label: 'AI: both',
+            title: 'The network is playing itself. Click again to switch it off (B)'}
+    ];
+
+    function aiStep() {
+        for (var i = 0; i < AI_SEATS.length; i++) {
+            if (AI_SEATS[i].seats === state.ai) return i;
+        }
+        return 0;
+    }
+
     function updateAiButton() {
         var button = document.getElementById('ai');
         if (!button) return;
-        var on = !!state.ai;
-        button.classList.toggle('on', on);
-        button.title = on
-            ? 'Player 2 is played by the trained network (A)'
-            : 'Let the trained network play player 2 (A)';
+
+        var step = AI_SEATS[aiStep()];
+        button.classList.toggle('on', !!state.ai);
+        button.classList.toggle('both', state.ai === 3);
+        button.title = step.title;
+
+        var text = button.querySelector('.btxt');
+        if (text) text.textContent = step.label;
     }
 
     /**
-     * Switch the network on or off. The first time costs a download - it is a
-     * megabyte and a half of tensorflow plus the model - so the button says
-     * what it is doing rather than appearing to have been ignored.
+     * Step the network through the seats it plays. The first time costs a
+     * download - a megabyte and a half of tensorflow plus the model - so the
+     * button says what it is doing rather than appearing to have been ignored.
      */
     function toggleAI() {
-        if (state.ai) {
+        var next = AI_SEATS[(aiStep() + 1) % AI_SEATS.length].seats;
+
+        if (!next) {
             state.ai = 0;
             AI.cancel();
             updateAiButton();
             return;
         }
 
-        var button = document.getElementById('ai');
-        if (AI.ready()) {
-            state.ai = 2;
+        function take() {
+            state.ai = next;
             updateAiButton();
-            return;
+            state.message = next === 3
+                ? 'The network is playing itself. Press B to take a seat back.'
+                : 'The network is playing player 2.';
+            updateHud();
         }
 
+        if (AI.ready()) { take(); return; }
+
+        var button = document.getElementById('ai');
         if (button) button.classList.add('loading');
         AI.load().then(function () {
-            state.ai = 2;
             if (button) button.classList.remove('loading');
-            updateAiButton();
-            state.message = 'The network is playing player 2.';
-            updateHud();
+            take();
         }).catch(function (err) {
             if (button) button.classList.remove('loading');
             // A page opened straight off the disk cannot fetch the model:
@@ -756,6 +808,31 @@
             updateHud();
             if (window.console) window.console.error('billiards: ai', err);
         });
+    }
+
+    /**
+     * With nobody at the table, a finished rack is the end of the show. When
+     * the network has both seats it racks up again, after a pause long enough
+     * to read who won.
+     */
+    var racking = 0;
+
+    function keepPlaying() {
+        if (state.ai !== 3 || state.phase !== 'over') {
+            racking = 0;
+            return;
+        }
+        if (!racking) {
+            racking = Date.now() + 4000;
+            // the rulebook's line ends "press R for a new rack", which is not
+            // what happens when nobody is there to press it
+            state.message = state.message.replace(/Press R for a new rack\.?$/,
+                'Racking up again\u2026');
+            updateHud();
+        } else if (Date.now() >= racking) {
+            racking = 0;
+            newGame();
+        }
     }
 
     /* ------------------------------------------------------------------ *
@@ -859,6 +936,7 @@
         }
 
         playAI();
+        keepPlaying();
 
         placeInset();
         view.syncBalls();
@@ -1055,6 +1133,7 @@
         var spin = document.getElementById('spin');
         var spinning = false;
         spin.addEventListener('pointerdown', function (e) {
+            if (!humanTurn()) return;
             e.preventDefault();
             spinning = true;
             capture(spin, e.pointerId);
@@ -1081,7 +1160,10 @@
         holdButton(document.getElementById('aimright'), function () { startNudge(1); }, stopNudge);
 
         var elev = document.getElementById('elev');
-        elev.addEventListener('input', function () { setElevation(+this.value); });
+        elev.addEventListener('input', function () {
+            if (humanTurn()) setElevation(+this.value);
+            else this.value = state.elevation;      // put the slider back
+        });
         elev.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
         setElevation(0);
 
