@@ -233,6 +233,21 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
 
+    #stale {
+        position: fixed;
+        left: 50%;
+        top: 40%;
+        transform: translate(-50%, -50%);
+        max-width: 26em;
+        text-align: center;
+        line-height: 1.6;
+        background: rgba(120, 30, 24, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 12px;
+        padding: 16px 20px;
+        z-index: 50;
+    }
+
     /* ------------------------------------------------------ pov inset */
 
     /* the two views are panes, not a picture in a picture: each one owns its
@@ -387,12 +402,14 @@
         </div>
     </div>
 
-    <script src="panels.js"></script>
-    <script src="lib/three.js"></script>
-    <script src="lib/cannon-es.js"></script>
-    <script src="phys.js"></script>
-    <script src="ball_skins.js"></script>
-    <script src="render.js"></script>
-    <script src="game.js"></script>
+    <!-- The version tag is what stops a cdn or a browser pairing this page with
+         a stale script: change it whenever one of these files changes. -->
+    <script src="panels.js?v=2"></script>
+    <script src="lib/three.js?v=2"></script>
+    <script src="lib/cannon-es.js?v=2"></script>
+    <script src="phys.js?v=2"></script>
+    <script src="ball_skins.js?v=2"></script>
+    <script src="render.js?v=2"></script>
+    <script src="game.js?v=2"></script>
 </body>
 </html>

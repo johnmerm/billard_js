@@ -51,6 +51,14 @@ var Panels = (function () {
      * @param {Object} [opts] {onMove, onReset, onTap} - onMove takes over placing it
      */
     function register(el, key, opts) {
+        if (!el) {
+            // A panel the page does not have. This happens when a browser or a
+            // cdn serves a fresh index.html alongside a stale script, or the
+            // other way round; one missing panel should not take the game down
+            // with it.
+            if (window.console) window.console.warn('panels: no element for "' + key + '"');
+            return null;
+        }
         opts = opts || {};
 
         var grip = document.createElement('div');

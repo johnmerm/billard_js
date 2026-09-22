@@ -523,10 +523,15 @@
 
         var slider = document.getElementById('elev');
         if (slider && +slider.value !== state.elevation) slider.value = state.elevation;
-        document.getElementById('elevvalue').innerHTML = state.elevation + '&deg;';
-        document.getElementById('elevhint').textContent =
-            state.elevation === 0 ? 'level' :
+
+        var value = document.getElementById('elevvalue');
+        if (value) value.innerHTML = state.elevation + '&deg;';
+
+        var hint = document.getElementById('elevhint');
+        if (hint) {
+            hint.textContent = state.elevation === 0 ? 'level' :
                 (state.elevation < 25 ? 'a little air' : 'jump shot');
+        }
     }
 
     /** The little cue ball dial that sets where the tip strikes. */
@@ -629,15 +634,17 @@
 
     function updatePowerBar() {
         var pct = Math.max(0, Math.round(100 * (state.power - MIN_POWER) / (MAX_POWER - MIN_POWER)));
-        document.getElementById('powerfill').style.width = pct + '%';
+
+        var bar = document.getElementById('powerfill');
+        if (bar) bar.style.width = pct + '%';
 
         // the shoot button fills up as it is held, so a thumb over the bar
         // still knows how hard the shot is going to be
-        document.getElementById('shootfill').style.height =
-            (state.phase === 'charging' ? pct : 0) + '%';
+        var fill = document.getElementById('shootfill');
+        if (fill) fill.style.height = (state.phase === 'charging' ? pct : 0) + '%';
 
         var shoot = document.getElementById('shoot');
-        shoot.disabled = !(state.phase === 'aiming' || state.phase === 'charging');
+        if (shoot) shoot.disabled = !(state.phase === 'aiming' || state.phase === 'charging');
     }
 
     /**
@@ -668,13 +675,15 @@
 
     /** Label each pane, and park the seam handle between them. */
     function positionInsetFrame() {
-        if (!rects) return;
+        var seam = document.getElementById('seam');
+        if (!rects || !seam) return;
 
         var upper = view.isSwapped() ? rects.pov : rects.table;
         var lower = view.isSwapped() ? rects.table : rects.pov;
 
         // bottom left of each pane: the top corners belong to the panels
         function caption(el, pane, text) {
+            if (!el) return;
             el.style.left = pane.x + 'px';
             el.style.top = (pane.y + pane.h - 22) + 'px';
             el.textContent = text;
@@ -684,7 +693,6 @@
         caption(document.getElementById('caplower'), lower,
             view.isSwapped() ? 'TABLE' : 'CUE BALL');
 
-        var seam = document.getElementById('seam');
         var s = rects.seam;
         seam.classList.toggle('vertical', !!s.vertical);
         if (s.vertical) {
@@ -747,8 +755,31 @@
      * ------------------------------------------------------------------ */
 
     var last = 0;
+    var complained = {};
 
+    /**
+     * One frame. Anything thrown in here would otherwise stop the animation
+     * loop for good and leave a blank canvas with the panels still sitting on
+     * it - which is what a browser or a cdn serving a stale script alongside a
+     * fresh page looks like. Say so once and keep drawing.
+     */
     function frame(now) {
+        try {
+            tick(now);
+        } catch (err) {
+            var key = String(err && err.message);
+            if (!complained[key]) {
+                complained[key] = true;
+                if (window.console) {
+                    window.console.error('billiards: ' + key +
+                        ' - if this page was just updated, reload it ignoring the cache');
+                }
+            }
+        }
+        window.requestAnimationFrame(frame);
+    }
+
+    function tick(now) {
         var dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
         last = now;
         dt *= state.timeScale;      // 1 is real time; lower runs the table slowly
@@ -793,22 +824,43 @@
         document.getElementById('scene').style.cursor =
             (state.phase === 'ballInHand' && state.ghost && !placementLegal(state.ghost.x, state.ghost.y))
                 ? 'not-allowed' : 'crosshair';
-
-        window.requestAnimationFrame(frame);
     }
 
     /* ------------------------------------------------------------------ */
 
-    /** Every panel can be dragged clear of the shot, the inset included. */
+    /**
+     * The page and its scripts have to be the same vintage. A browser or a cdn
+     * that pairs a fresh index.html with a stale render.js leaves a blank canvas
+     * and a console message nobody reads, so say it on the page instead.
+     */
+    function checkVersions() {
+        var needed = ['render', 'syncBalls', 'setAim', 'setInHand', 'setSplit',
+            'setPaneRegion', 'swapViews', 'screenToTable'];
+        var missing = needed.filter(function (name) {
+            return typeof view[name] !== 'function';
+        });
+        if (!missing.length) return true;
+
+        var banner = document.createElement('div');
+        banner.id = 'stale';
+        banner.innerHTML = 'This page loaded an out of date script (' + missing.join(', ') +
+            ' missing).<br>Reload ignoring the cache &mdash; ' +
+            '<b>ctrl/cmd + shift + R</b> &mdash; to pick up the current version.';
+        document.body.appendChild(banner);
+        return false;
+    }
+
+    /** Every panel can be dragged clear of the shot. */
     function initPanels() {
-        Panels.register(document.getElementById('status'), 'status');
-        Panels.register(document.getElementById('buttons'), 'buttons');
-        Panels.register(document.getElementById('controls'), 'controls');
+        ['status', 'buttons', 'controls'].forEach(function (id) {
+            Panels.register(document.getElementById(id), id);
+        });
     }
 
     /** Drag the seam between the two views to give one of them more room. */
     function initSeam() {
         var seam = document.getElementById('seam');
+        if (!seam) return;
         var dragging = false;
 
         seam.addEventListener('pointerdown', function (e) {
@@ -863,6 +915,7 @@
         }, true);
 
         newGame();
+        if (!checkVersions()) return;      // nothing below would work anyway
         initPanels();
         initSeam();
 
