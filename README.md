@@ -236,6 +236,17 @@ positions, which is the one thing the simulator cannot do for itself.
 
     node train/selfplay.js --games 30 --a value:model/value --b search4
 
+A first network, trained on 70,000 turns from 3,000 racks of the baseline bot
+playing itself, beats that baseline 15-5 over twenty racks and beats the
+searching version of it 14-6. Against the searching one it pots no more balls
+than its opponent does — 6.0 a rack against 6.2 — so what it is winning with is
+not potting. It is where it leaves the cue ball.
+
+The model itself is honest about how hard the question is: it gets the winner
+right 70% of the time one or two shots from the end and 54% at the break, which
+is about what you would hope. A player that was confident about the break would
+have learned something about the data rather than about the game.
+
 Training needs tensorflow.js, which is the one thing in this repo that comes
 from npm — `npm install`, and only for the training tools. The game itself still
 loads plain scripts and needs no build step and no package manager. The model is
