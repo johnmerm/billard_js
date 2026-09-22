@@ -202,6 +202,8 @@ function Renderer(canvas, world) {
     /* --------------------------- cameras ------------------------------ */
 
     var margin = FRAME + R * 2;
+    var tableInsets = {top: 0, bottom: 0, left: 0, right: 0};   // space the page needs
+    var camCentre = {x: 0, z: 0};                               // where the top view looks
     var topCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 12);
     topCamera.position.set(0, 3, 0);
     topCamera.up.set(0, 0, -1);               // table +y points up the screen
@@ -211,28 +213,59 @@ function Renderer(canvas, world) {
 
     var swapped = false;     // false: table view large, pov inset
     var portrait = false;    // tall viewport: stand the table on end
-    var insetLift = 0;       // keep the inset above the on screen controls
+    var insetEdge = 'bottom';    // which edge the inset hangs from
+    var insetOffset = 0;         // and how far in, to clear the page's panels
 
+    /**
+     * Fit the table into the part of the view the page has left free, then open
+     * the camera back out to the whole canvas. The cloth still runs edge to
+     * edge, but the table itself sits clear of the panels on top of it.
+     */
     function fitTopCamera(w, h) {
         portrait = h > w;
 
-        // extents across and up the screen, in metres of table
+        var t = tableInsets.top, b = tableInsets.bottom;
+        var l = tableInsets.left, rt = tableInsets.right;
+        var freeW = Math.max(60, w - l - rt), freeH = Math.max(60, h - t - b);
+
+        // extents across and up the free area, in metres of table
         var across = ((portrait ? H : W) + 2 * margin) / 2;
         var up = ((portrait ? W : H) + 2 * margin) / 2;
 
-        var viewAspect = w / h;
+        var viewAspect = freeW / freeH;
         if (viewAspect > across / up) across = up * viewAspect;
         else up = across / viewAspect;
+
+        across *= w / freeW;
+        up *= h / freeH;
+
+        // shift the camera so the middle of the free area holds the middle of
+        // the table: screen right and screen up land on different world axes
+        // depending on which way round the table is
+        var shiftRight = ((l - rt) / 2) * (2 * across / w);
+        var shiftUp = ((b - t) / 2) * (2 * up / h);
+
+        camCentre.x = portrait ? -shiftUp : -shiftRight;
+        camCentre.z = portrait ? -shiftRight : shiftUp;
 
         topCamera.left = -across;
         topCamera.right = across;
         topCamera.top = up;
         topCamera.bottom = -up;
+        topCamera.position.set(camCentre.x, 3, camCentre.z);
         // portrait puts table +x up the screen, landscape puts table +y up
         topCamera.up.set(portrait ? 1 : 0, 0, portrait ? 0 : -1);
-        topCamera.lookAt(new THREE.Vector3(0, 0, 0));
+        topCamera.lookAt(new THREE.Vector3(camCentre.x, 0, camCentre.z));
         topCamera.updateProjectionMatrix();
     }
+
+    /** Pixels along each edge that the page's own panels are sitting on. */
+    this.setTableInsets = function (insets) {
+        tableInsets.top = (insets && insets.top) || 0;
+        tableInsets.bottom = (insets && insets.bottom) || 0;
+        tableInsets.left = (insets && insets.left) || 0;
+        tableInsets.right = (insets && insets.right) || 0;
+    };
 
     /* --------------------------- updates ------------------------------ */
 
@@ -326,9 +359,13 @@ function Renderer(canvas, world) {
         povCamera.lookAt(new THREE.Vector3(x + dx, R * 1.1, z - dy));
     }
 
-    /** Raise the inset by this many pixels, so page furniture can sit under it. */
-    this.setInsetLift = function (px) {
-        insetLift = px || 0;
+    /**
+     * Hang the inset from the top or the bottom of the canvas, `offset` pixels
+     * in, so the page can keep it clear of its own panels.
+     */
+    this.setInsetPlacement = function (edge, offset) {
+        insetEdge = edge === 'top' ? 'top' : 'bottom';
+        insetOffset = offset || 0;
     };
 
     this.swapViews = function () {
@@ -355,10 +392,17 @@ function Renderer(canvas, world) {
 
         aimPov(cueBall, angle);
 
-        var insetW = Math.max(180, Math.round(w * 0.32));
+        var insetW = Math.min(Math.max(150, Math.round(w * 0.32)), 340);
         var insetH = Math.round(insetW * 0.62);
+        if (insetH > h * 0.3) {          // a phone held sideways has little height to give
+            insetH = Math.round(h * 0.3);
+            insetW = Math.round(insetH / 0.62);
+        }
         var pad = Math.round(Math.min(w, h) * 0.025);
-        var inset = {x: w - insetW - pad, y: h - insetH - pad - insetLift, w: insetW, h: insetH};
+        var insetY = insetEdge === 'top'
+            ? Math.max(pad, insetOffset)
+            : Math.max(pad, h - insetH - pad - insetOffset);
+        var inset = {x: w - insetW - pad, y: insetY, w: insetW, h: insetH};
         var main = {x: 0, y: 0, w: w, h: h};
 
         var mainCam = swapped ? povCamera : topCamera;
@@ -422,13 +466,13 @@ function Renderer(canvas, world) {
         var across = topCamera.right, up = topCamera.top;
         if (portrait) {
             return {
-                x: (1 - v * 2) * up + W / 2,
-                y: H / 2 - (u * 2 - 1) * across
+                x: (1 - v * 2) * up + W / 2 + camCentre.x,
+                y: H / 2 - camCentre.z - (u * 2 - 1) * across
             };
         }
         return {
-            x: (u * 2 - 1) * across + W / 2,
-            y: (1 - v * 2) * up + H / 2
+            x: (u * 2 - 1) * across + W / 2 + camCentre.x,
+            y: (1 - v * 2) * up + H / 2 - camCentre.z
         };
     };
 

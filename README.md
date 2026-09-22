@@ -24,16 +24,30 @@ are aiming, and along the direction of travel once the ball is moving. Either on
 can be the big picture — press **V** (or the button) to swap the inset and the
 main view.
 
-## Playing
+## Controls
+
+Every control is a button on screen, so the game plays the same with a thumb as
+with a keyboard.
 
 | | |
 |---|---|
-| move the mouse | aim |
-| hold the mouse or **space** | build power, release to shoot |
-| **←** **→** | fine aim (hold **shift** for finer) |
-| **↑** **↓**, **A**/**D**, **C** | follow/draw, left/right english, centre ball |
-| drag the spin dial | the same thing with the mouse |
-| **V** / **R** / **M** | swap views / new rack / mute |
+| drag on the table | aim |
+| hold **SHOOT** | build power, let go to take the shot |
+| **◀ ▶** | nudge the aim — a tap is a hair, holding sweeps |
+| the spin dial | drag the tip around the cue ball; double click to centre it |
+| the small view | tap it to bring it up front |
+| the top right buttons | swap views, sound, new rack |
+
+On a mouse the old habits still work: hold the button down on the table to
+charge and release to shoot, **space** to charge, **←** **→** to fine aim
+(**shift** for finer), **↑** **↓** and **A**/**D** for follow, draw and english,
+**C** to centre, **V** / **R** / **M** for views, a new rack and sound.
+
+On a touch screen dragging only ever aims — the shot needs the SHOOT button —
+so you can slide a finger around the table without firing the cue ball across
+the room. The controls take the bottom of the screen and the table is fitted to
+what is left, rather than being hidden behind them, and a phone held upright
+stands the table on end to fill the screen.
 
 Standard eight ball: break from behind the head string, the table stays open
 until the first ball is potted after the break, then you are on solids or

@@ -144,6 +144,7 @@
         state.phase = 'rolling';
         state.broken = true;
         Sound.hit(state.power / MAX_POWER);
+        updatePowerBar();      // empty the shoot button now, not on the next frame
     }
 
     function trackEvents(events) {
@@ -307,37 +308,139 @@
         return rects ? view.screenToTable(e.clientX, e.clientY, rects) : null;
     }
 
-    function onPointerMove(e) {
-        var p = pointerPos(e);
-        if (!p) return;
-        if (state.phase === 'ballInHand') {
-            state.ghost = p;
-        } else if (state.phase === 'aiming') {
-            aimAt(p);
-        }
+    var dragging = false;
+    var chargePointer = null;     // which pointer started the charge, if any
+
+    /** True if the pointer is over the small inset view rather than the table. */
+    function insetHit(e) {
+        if (!rects) return false;
+        var box = document.getElementById('scene').getBoundingClientRect();
+        var r = view.isSwapped() ? rects.table : rects.pov;
+        var x = e.clientX - box.left, y = e.clientY - box.top;
+        return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
     }
 
     function onPointerDown(e) {
+        if (insetHit(e)) {          // tap the small view to bring it up front
+            view.swapViews();
+            return;
+        }
+
         var p = pointerPos(e);
         if (state.phase === 'ballInHand') {
-            if (p) placeCueBall(p.x, p.y);
+            if (p) {
+                state.ghost = p;
+                placeCueBall(p.x, p.y);
+            }
             return;
         }
         if (state.phase !== 'aiming') return;
+
+        dragging = true;
+        capture(e.target, e.pointerId);
         if (p) aimAt(p);
-        startCharge();
+
+        // A finger aims and nothing else: the shot goes off with the shoot
+        // button, so dragging around the table cannot fire one by accident.
+        // A mouse keeps the old feel - hold the button to charge, let go to hit.
+        if (e.pointerType === 'mouse') startCharge(e.pointerId);
     }
 
-    function startCharge() {
+    function onPointerMove(e) {
+        if (e.pointerType !== 'mouse' && !dragging) return;
+        var p = pointerPos(e);
+        if (!p) return;
+        if (state.phase === 'ballInHand') state.ghost = p;
+        else if (state.phase === 'aiming') aimAt(p);
+    }
+
+    function onPointerUp(e) {
+        dragging = false;
+        releaseCharge(e.pointerId);
+    }
+
+    function capture(el, id) {
+        if (el && el.setPointerCapture && id !== undefined) {
+            try { el.setPointerCapture(id); } catch (err) { /* not captureable */ }
+        }
+    }
+
+    function startCharge(pointerId) {
         if (state.phase !== 'aiming') return;
         state.phase = 'charging';
         state.chargeStart = performance.now();
         state.power = MIN_POWER;
+        chargePointer = pointerId === undefined ? null : pointerId;
     }
 
-    function releaseCharge() {
+    /** How hard the shot is by now, from how long the button has been down. */
+    function chargedPower(now) {
+        var held = (now - state.chargeStart) / 1000;
+        return MIN_POWER + (MAX_POWER - MIN_POWER) * Math.min(held / CHARGE_TIME, 1);
+    }
+
+    /** Let go: only the pointer that started the charge can take the shot. */
+    function releaseCharge(pointerId) {
         if (state.phase !== 'charging') return;
+        if (chargePointer !== null && pointerId !== undefined && pointerId !== chargePointer) return;
+        chargePointer = null;
+        // read the power now rather than trusting the last frame, so a slow
+        // frame cannot rob the shot of the power the player felt they held
+        state.power = chargedPower(performance.now());
         shoot();
+    }
+
+    /* ---------------------------- buttons ----------------------------- */
+
+    /** Wire a button for press and hold rather than click. */
+    function holdButton(el, onDown, onUp) {
+        el.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            if (el.disabled) return;
+            el.classList.add('held');
+            capture(el, e.pointerId);
+            onDown(e);
+        });
+
+        function end(e) {
+            if (!el.classList.contains('held')) return;
+            el.classList.remove('held');
+            onUp(e);
+        }
+        el.addEventListener('pointerup', end);
+        el.addEventListener('pointercancel', end);
+        el.addEventListener('lostpointercapture', end);
+    }
+
+    // Aim nudging: a tap moves the aim by a hair, holding sweeps, and the
+    // longer it is held the faster it goes. The sweep is driven from the main
+    // loop in degrees per second, so it reads the same on a slow phone as on a
+    // desktop.
+    var nudge = {dir: 0, since: 0, last: 0};
+
+    function startNudge(dir) {
+        nudge.dir = dir;
+        nudge.since = nudge.last = performance.now();
+        state.angle += dir * 0.0016;      // about a twentieth of a degree
+    }
+
+    function stopNudge() {
+        nudge.dir = 0;
+    }
+
+    /**
+     * Sweep on its own clock rather than the simulation's: the physics step is
+     * clamped for stability, and on a slow phone that clamp would turn a sweep
+     * into a crawl.
+     */
+    function sweepAim(now) {
+        if (!nudge.dir) return;
+        var dt = Math.min((now - nudge.last) / 1000, 0.25);
+        nudge.last = now;
+
+        var held = (now - nudge.since) / 1000;
+        if (held < 0.2) return;           // a tap should not turn into a sweep
+        state.angle += nudge.dir * Math.min(0.35 + (held - 0.2) * 1.2, 1.4) * dt;
     }
 
     function onKeyDown(e) {
@@ -393,8 +496,16 @@
     function drawSpinWidget() {
         var cv = document.getElementById('spin');
         if (!cv) return;
+
+        // the dial grows on touch screens, so follow the box it is given
+        var dpr = window.devicePixelRatio || 1;
+        var wanted = Math.round((cv.clientWidth || 78) * dpr);
+        if (wanted && cv.width !== wanted) {
+            cv.width = cv.height = wanted;
+        }
+
         var ctx = cv.getContext('2d');
-        var size = cv.width, c = size / 2, rad = size / 2 - 4;
+        var size = cv.width, c = size / 2, rad = size / 2 - size * 0.05;
 
         ctx.clearRect(0, 0, size, size);
         var g = ctx.createRadialGradient(c - rad * 0.3, c - rad * 0.3, rad * 0.1, c, c, rad);
@@ -420,7 +531,7 @@
     function spinFromPointer(e) {
         var cv = document.getElementById('spin');
         var box = cv.getBoundingClientRect();
-        var rad = box.width / 2 - 4;
+        var rad = box.width / 2 - box.width * 0.05;
         var sx = (e.clientX - box.left - box.width / 2) / rad;
         var sy = -(e.clientY - box.top - box.height / 2) / rad;
 
@@ -469,9 +580,48 @@
         }
     }
 
+    // updateHud rebuilds markup, so only run it when there is something new to say
+    var hudShown = null;
+
+    function refreshHud() {
+        var key = state.player + '|' + state.phase + '|' + state.message;
+        if (key === hudShown) return;
+        hudShown = key;
+        updateHud();
+    }
+
     function updatePowerBar() {
-        var pct = Math.round(100 * (state.power - MIN_POWER) / (MAX_POWER - MIN_POWER));
-        document.getElementById('powerfill').style.width = Math.max(0, pct) + '%';
+        var pct = Math.max(0, Math.round(100 * (state.power - MIN_POWER) / (MAX_POWER - MIN_POWER)));
+        document.getElementById('powerfill').style.width = pct + '%';
+
+        // the shoot button fills up as it is held, so a thumb over the bar
+        // still knows how hard the shot is going to be
+        document.getElementById('shootfill').style.height =
+            (state.phase === 'charging' ? pct : 0) + '%';
+
+        var shoot = document.getElementById('shoot');
+        shoot.disabled = !(state.phase === 'aiming' || state.phase === 'charging');
+    }
+
+    /**
+     * Keep the inset view clear of the panels: below the buttons on a touch
+     * layout, where the controls own the bottom of the screen, and above the
+     * controls otherwise.
+     */
+    function placeInset() {
+        var controls = document.getElementById('controls').getBoundingClientRect();
+        var fromBottom = Math.max(0, window.innerHeight - controls.top) + 10;
+
+        if (document.body.classList.contains('touch')) {
+            var bar = document.getElementById('buttons').getBoundingClientRect();
+            view.setInsetPlacement('top', bar.bottom + 10);
+            // the control bar owns the bottom of a touch screen, so keep the
+            // table above it rather than behind it
+            view.setTableInsets({bottom: fromBottom});
+        } else {
+            view.setInsetPlacement('bottom', window.innerWidth < 900 ? fromBottom : 0);
+            view.setTableInsets({});
+        }
     }
 
     function positionInsetFrame() {
@@ -539,11 +689,9 @@
         var dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
         last = now;
 
-        if (state.phase === 'charging') {
-            var held = (now - state.chargeStart) / 1000;
-            var t = Math.min(held / CHARGE_TIME, 1);
-            state.power = MIN_POWER + (MAX_POWER - MIN_POWER) * t;
-        }
+        sweepAim(now);
+
+        if (state.phase === 'charging') state.power = chargedPower(now);
 
         if (dt > 0) {
             trackEvents(world.step(dt));
@@ -558,10 +706,7 @@
             cueBall.placeAt(state.ghost.x, state.ghost.y);
         }
 
-        // on a narrow screen the controls sit under the inset, so lift it clear
-        var controls = document.getElementById('controls').getBoundingClientRect();
-        view.setInsetLift(window.innerWidth < 900 ? controls.height + 10 : 0);
-
+        placeInset();
         view.syncBalls();
 
         var aiming = state.phase === 'aiming' || state.phase === 'charging';
@@ -570,6 +715,7 @@
             side: state.side, vert: state.vert
         } : null);
 
+        refreshHud();
         rects = view.render(cueBall, state.angle);
         positionInsetFrame();
         updatePowerBar();
@@ -583,37 +729,68 @@
 
     /* ------------------------------------------------------------------ */
 
+    /** A touch anywhere means thumbs, not a mouse: show the bigger controls. */
+    function markTouch() {
+        document.body.classList.add('touch');
+        drawSpinWidget();          // the dial is bigger in that layout
+    }
+
     window.addEventListener('load', function () {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) markTouch();
+        window.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'touch') markTouch();
+        }, true);
+
         newGame();
 
         var canvas = document.getElementById('scene');
-        canvas.addEventListener('mousemove', onPointerMove);
-        canvas.addEventListener('mousedown', onPointerDown);
-        window.addEventListener('mouseup', releaseCharge);
+        canvas.addEventListener('pointerdown', onPointerDown);
+        canvas.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
 
+        // spin dial: drag the tip around the cue ball
         var spin = document.getElementById('spin');
         var spinning = false;
-        spin.addEventListener('mousedown', function (e) { spinning = true; spinFromPointer(e); e.preventDefault(); });
-        window.addEventListener('mousemove', function (e) { if (spinning) spinFromPointer(e); });
-        window.addEventListener('mouseup', function () { spinning = false; });
+        spin.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            spinning = true;
+            capture(spin, e.pointerId);
+            spinFromPointer(e);
+        });
+        spin.addEventListener('pointermove', function (e) {
+            if (spinning) spinFromPointer(e);
+        });
+        function endSpin() { spinning = false; }
+        spin.addEventListener('pointerup', endSpin);
+        spin.addEventListener('pointercancel', endSpin);
+        spin.addEventListener('lostpointercapture', endSpin);
+        spin.addEventListener('dblclick', function () {
+            state.side = state.vert = 0;
+            drawSpinWidget();
+        });
+
+        // hold to charge, let go to shoot - the same deal as the mouse button
+        holdButton(document.getElementById('shoot'),
+            function (e) { startCharge(e.pointerId); },
+            function (e) { releaseCharge(e.pointerId); });
+
+        holdButton(document.getElementById('aimleft'), function () { startNudge(-1); }, stopNudge);
+        holdButton(document.getElementById('aimright'), function () { startNudge(1); }, stopNudge);
 
         document.getElementById('newgame').addEventListener('click', newGame);
         document.getElementById('swap').addEventListener('click', function () { view.swapViews(); });
+        document.getElementById('sound').addEventListener('click', function () {
+            this.innerHTML = Sound.toggle() ? '\u266a' : '\u266a\u0338';
+            this.blur();
+        });
 
-        // touch: drag to aim, lift to shoot
-        canvas.addEventListener('touchstart', function (e) {
-            var t = e.touches[0];
-            onPointerDown({clientX: t.clientX, clientY: t.clientY});
-            e.preventDefault();
-        }, {passive: false});
-        canvas.addEventListener('touchmove', function (e) {
-            var t = e.touches[0];
-            onPointerMove({clientX: t.clientX, clientY: t.clientY});
-            e.preventDefault();
-        }, {passive: false});
-        canvas.addEventListener('touchend', function (e) { releaseCharge(); e.preventDefault(); }, {passive: false});
+        window.addEventListener('resize', drawSpinWidget);
+        window.addEventListener('orientationchange', function () {
+            window.setTimeout(drawSpinWidget, 250);
+        });
 
         window.requestAnimationFrame(frame);
     });

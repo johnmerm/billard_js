@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Billiards</title>
 <style>
     :root {
@@ -10,6 +11,11 @@
         --dim: #9aa4b1;
         --panel: rgba(12, 16, 21, 0.72);
         --edge: rgba(255, 255, 255, 0.12);
+        --pad: 14px;
+        --safe-b: env(safe-area-inset-bottom, 0px);
+        --safe-l: env(safe-area-inset-left, 0px);
+        --safe-r: env(safe-area-inset-right, 0px);
+        --safe-t: env(safe-area-inset-top, 0px);
     }
 
     * { box-sizing: border-box; }
@@ -21,6 +27,10 @@
         color: var(--ink);
         font: 14px/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif;
         overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
     }
 
     #scene {
@@ -30,18 +40,26 @@
         height: 100%;
         display: block;
         cursor: crosshair;
+        touch-action: none;
     }
 
     .panel {
         position: fixed;
         background: var(--panel);
         border: 1px solid var(--edge);
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 10px 12px;
         backdrop-filter: blur(6px);
     }
 
-    #status { top: 14px; left: 14px; min-width: 260px; max-width: 34vw; }
+    /* ---------------------------------------------------------- status */
+
+    #status {
+        top: calc(var(--pad) + var(--safe-t));
+        left: calc(var(--pad) + var(--safe-l));
+        min-width: 250px;
+        max-width: 34vw;
+    }
 
     #turn { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
     #turn.p0 { color: #7fd0ff; }
@@ -73,15 +91,67 @@
         margin-right: 2px;
         border: 1px solid rgba(0, 0, 0, 0.35);
     }
-    .chip.striped {
-        background: linear-gradient(#f6f4ef 0 26%, var(--c) 26% 74%, #f6f4ef 74%);
-    }
+    .chip.striped { background: linear-gradient(#f6f4ef 0 26%, var(--c) 26% 74%, #f6f4ef 74%); }
     .chip.gone { opacity: 0.2; }
 
-    #controls { left: 14px; bottom: 14px; display: flex; gap: 14px; align-items: flex-end; }
+    /* --------------------------------------------------------- buttons */
 
-    #power { width: 190px; }
+    button {
+        font: inherit;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        padding: 8px 12px;
+        cursor: pointer;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    button:hover { background: rgba(255, 255, 255, 0.16); }
+    button:active, button.held { background: rgba(255, 255, 255, 0.24); }
+
+    #buttons {
+        top: calc(var(--pad) + var(--safe-t));
+        right: calc(var(--pad) + var(--safe-r));
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+    }
+
+    /* -------------------------------------------------------- controls */
+
+    #controls {
+        left: calc(var(--pad) + var(--safe-l));
+        bottom: calc(var(--pad) + var(--safe-b));
+        display: flex;
+        gap: 14px;
+        align-items: center;
+    }
+
+    .group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+    .group > .label, .group > canvas, .group > button { align-self: center; }
+    .label {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--dim);
+    }
+
+    #aim { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+    .nudge {
+        width: 46px;
+        height: 46px;
+        font-size: 17px;
+        padding: 0;
+        border-radius: 12px;
+    }
+
+    #spin { width: 78px; height: 78px; cursor: pointer; touch-action: none; }
+
+    #power { width: 180px; align-self: stretch; }
     #powerbar {
+        width: 100%;
         height: 12px;
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.1);
@@ -93,11 +163,8 @@
         width: 0;
         background: linear-gradient(90deg, #4ea36b, #f2c500 60%, #d8422c);
     }
-    .label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; }
 
-    #spin { width: 74px; height: 74px; cursor: pointer; }
-
-    #keys { color: var(--dim); font-size: 11px; line-height: 1.7; }
+    #keys { color: var(--dim); font-size: 11px; line-height: 1.7; margin-top: 8px; }
     #keys kbd {
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid var(--edge);
@@ -106,17 +173,29 @@
         font: inherit;
     }
 
-    #buttons { right: 14px; top: 14px; display: flex; gap: 8px; padding: 8px; }
-    button {
-        font: inherit;
-        color: var(--ink);
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid var(--edge);
-        border-radius: 7px;
-        padding: 6px 11px;
-        cursor: pointer;
+    #shoot {
+        position: relative;
+        width: 74px;
+        height: 74px;
+        border-radius: 50%;
+        padding: 0;
+        overflow: hidden;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
     }
-    button:hover { background: rgba(255, 255, 255, 0.16); }
+    #shootfill {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: 0;
+        background: linear-gradient(to top, #2f7d52, #f2c500 65%, #d8422c);
+        opacity: 0.85;
+        transition: height 0.04s linear;
+    }
+    #shoot span.cap { position: relative; }
+    #shoot:disabled { opacity: 0.35; }
+
+    /* ------------------------------------------------------ pov inset */
 
     #insetframe {
         position: fixed;
@@ -128,6 +207,49 @@
         letter-spacing: 0.14em;
         color: rgba(255, 255, 255, 0.75);
         padding: 4px 6px;
+    }
+
+    /* ------------------------------------------------ touch layout */
+
+    body.touch #keys { display: none; }
+    body.touch .btxt { display: none; }
+
+    body.touch #controls {
+        left: calc(var(--pad) + var(--safe-l));
+        right: calc(var(--pad) + var(--safe-r));
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    body.touch .nudge { width: 60px; height: 60px; font-size: 21px; }
+    body.touch #spin { width: 96px; height: 96px; }
+    body.touch #shoot { width: 96px; height: 96px; font-size: 13px; }
+    body.touch #power { width: 84px; }
+    body.touch button { padding: 11px 13px; font-size: 16px; }
+
+    body.touch #status {
+        max-width: 52vw;
+        min-width: 0;
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    body.touch #turn { font-size: 15px; }
+
+    /* short screens: a phone held sideways has no room to spare */
+    @media (max-height: 520px) {
+        body.touch #status .groupline { margin-top: 4px; font-size: 11px; }
+        body.touch #power { display: none; }
+        body.touch #spin { width: 78px; height: 78px; }
+        body.touch .nudge { width: 54px; height: 54px; }
+        body.touch #shoot { width: 84px; height: 84px; }
+    }
+
+    /* narrow screens: the shoot button already shows the power, so the bar goes */
+    @media (max-width: 460px) {
+        body.touch #power { display: none; }
+        body.touch #spin { width: 84px; height: 84px; }
+        body.touch .nudge { width: 54px; height: 54px; }
     }
 </style>
 </head>
@@ -143,22 +265,38 @@
     </div>
 
     <div id="buttons" class="panel">
-        <button id="swap">Swap views (V)</button>
-        <button id="newgame">New rack (R)</button>
+        <button id="swap" title="Swap views (V)">&#8646; <span class="btxt">Swap views</span></button>
+        <button id="sound" title="Sound (M)">&#9834;</button>
+        <button id="newgame" title="New rack (R)">&#8635; <span class="btxt">New rack</span></button>
     </div>
 
     <div id="controls" class="panel">
-        <div id="power">
+        <div class="group" id="aimgroup">
+            <div class="label">Aim</div>
+            <div id="aim">
+                <button class="nudge" id="aimleft" title="Aim left (&larr;)">&#9664;</button>
+                <button class="nudge" id="aimright" title="Aim right (&rarr;)">&#9654;</button>
+            </div>
+        </div>
+
+        <div class="group">
+            <div class="label">Spin</div>
+            <canvas id="spin" width="78" height="78"></canvas>
+        </div>
+
+        <div class="group" id="power">
             <div class="label">Power</div>
             <div id="powerbar"><div id="powerfill"></div></div>
-            <div id="keys" style="margin-top:8px">
+            <div id="keys">
                 <kbd>drag</kbd> aim &middot; <kbd>hold click</kbd> or <kbd>space</kbd> to charge, release to shoot<br>
                 <kbd>&larr;</kbd><kbd>&rarr;</kbd> fine aim (<kbd>shift</kbd> finer) &middot; <kbd>V</kbd> swap views &middot; <kbd>M</kbd> sound
             </div>
         </div>
-        <div>
-            <div class="label">Spin</div>
-            <canvas id="spin" width="74" height="74"></canvas>
+
+        <div class="group">
+            <button id="shoot" title="Hold to charge, release to shoot">
+                <span id="shootfill"></span><span class="cap">SHOOT</span>
+            </button>
         </div>
     </div>
 
