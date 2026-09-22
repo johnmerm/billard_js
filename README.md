@@ -237,15 +237,22 @@ positions, which is the one thing the simulator cannot do for itself.
     node train/selfplay.js --games 30 --a value:model/value --b search4
 
 A first network, trained on 70,000 turns from 3,000 racks of the baseline bot
-playing itself, beats that baseline 15-5 over twenty racks and beats the
-searching version of it 14-6. Against the searching one it pots no more balls
-than its opponent does — 6.0 a rack against 6.2 — so what it is winning with is
-not potting. It is where it leaves the cue ball.
+playing itself, beats that baseline **58-22** over eighty racks and its
+searching version **49-31**. Against the searching one it pots slightly *fewer*
+balls than its opponent — 5.9 a rack against 6.4 — so potting is not what it is
+winning with. It is where it leaves the cue ball, which is the one thing neither
+baseline ever thinks about.
 
-The model itself is honest about how hard the question is: it gets the winner
-right 70% of the time one or two shots from the end and 54% at the break, which
-is about what you would hope. A player that was confident about the break would
-have learned something about the data rather than about the game.
+Eighty racks is the smallest sample worth quoting here. Twenty of them had the
+same player at 14-6 against the searching bot, which looked like a far bigger
+margin than the 61% it settles at; a couple of racks either way is ten points at
+that size.
+
+The model is honest about how hard the question is: it names the winner 70% of
+the time one or two shots from the end and 54% at the break, against 59%
+overall, where guessing the average would score 50%. That shape is the one to
+want — a model confident about the break would have found something in the data
+rather than in the game.
 
 Training needs tensorflow.js, which is the one thing in this repo that comes
 from npm — `npm install`, and only for the training tools. The game itself still
