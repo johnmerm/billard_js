@@ -21,16 +21,58 @@ function arg(name, fallback) {
     return (next === undefined || next.slice(0, 2) === '--') ? true : next;
 }
 
+/**
+ * `greedy`, `search4`, or `value:<directory>` to play the trained network. The
+ * model is loaded once and shared: it is read only, and loading it per game
+ * would cost more than the games.
+ */
+var loaded = {};
+
 function player(spec, seed) {
-    var m = /^search(\d+)$/.exec(spec || '');
+    spec = spec || 'greedy';
+
+    var value = /^value(?::(.+))?$/.exec(spec);
+    if (value) {
+        var dir = value[1] || 'model/value';
+        if (!loaded[dir]) {
+            throw new Error('model at ' + dir + ' has not been loaded yet');
+        }
+        var Player = require('./player.js');
+        return Player.create({
+            model: loaded[dir], seed: seed, name: spec,
+            shots: +arg('shots', 3), spread: +arg('spread', 2)
+        });
+    }
+
+    var m = /^search(\d+)$/.exec(spec);
     if (m) return Bot.create({search: +m[1], seed: seed, name: spec});
     return Bot.create({search: 0, seed: seed, name: 'greedy'});
+}
+
+/** Load whatever models the two specs ask for, before any game starts. */
+async function ready(specs) {
+    var Value = null;
+    for (var i = 0; i < specs.length; i++) {
+        var m = /^value(?::(.+))?$/.exec(specs[i] || '');
+        if (!m) continue;
+        var dir = m[1] || 'model/value';
+        if (loaded[dir]) continue;
+        Value = Value || require('./value.js');
+        loaded[dir] = await Value.loadModel(dir);
+    }
 }
 
 var games = +arg('games', 20);
 var verbose = !!arg('verbose', false);
 var specA = arg('a', 'greedy'), specB = arg('b', 'greedy');
 var seed0 = +arg('seed', 1);
+
+ready([specA, specB]).then(run).catch(function (err) {
+    console.error(err.message);
+    process.exit(1);
+});
+
+function run() {
 
 var wins = [0, 0], draws = 0;
 var shots = 0, fouls = [0, 0], pots = [0, 0], tableTime = 0;
@@ -78,3 +120,5 @@ console.log('  ' + (shots / games).toFixed(1) + ' shots per rack, ' +
 console.log('  ' + wall.toFixed(1) + ' s for ' + games + ' racks (' +
     (wall / games).toFixed(2) + ' s each, ' + (shots / wall).toFixed(1) + ' shots/s), ' +
     (tableTime / shots).toFixed(1) + ' s of table per shot');
+
+}

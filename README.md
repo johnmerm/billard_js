@@ -149,10 +149,12 @@ holding it back.
 | `train/encode.js` | a table as 109 numbers, from the point of view of whoever is about to shoot |
 | `train/collect.js` | self play across every core, written down: `node train/collect.js --games 400` |
 | `train/value.js` | learns to judge a position from that: `node train/value.js --data data/v1` |
+| `train/player.js` | plays by simulating each shot and judging what it leaves behind |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
 | `test/match.test.js` | harness and bot tests: `node test/match.test.js` |
 | `test/encode.test.js` | encoder and collector tests: `node test/encode.test.js` |
 | `test/value.test.js` | value network tests: `node test/value.test.js` |
+| `test/player.test.js` | value player tests: `node test/player.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
@@ -224,6 +226,15 @@ The train/validation split is by rack rather than by turn. Every turn in a rack
 carries the same outcome and they all look much alike, so splitting by turn
 would put near copies of the same position on both sides of the fence and
 report a score that means nothing.
+
+`train/player.js` is the player that results. For each pot the geometry offers
+it plays the shot out in the simulator — softer, harder, with follow and with
+draw — looks at the table each one leaves, and asks the network how good that
+position is for whoever has to play it. Then it takes the shot whose aftermath
+it likes best. The network never picks a shot and never aims; it only judges
+positions, which is the one thing the simulator cannot do for itself.
+
+    node train/selfplay.js --games 30 --a value:model/value --b search4
 
 Training needs tensorflow.js, which is the one thing in this repo that comes
 from npm — `npm install`, and only for the training tools. The game itself still

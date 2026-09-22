@@ -199,8 +199,20 @@ function save(model, dir) {
     }));
 }
 
+/** Read a model back off disk, the way the browser reads it over the network. */
+function loadModel(dir) {
+    var manifest = JSON.parse(fs.readFileSync(path.join(dir, 'model.json'), 'utf8'));
+    var weights = fs.readFileSync(path.join(dir, 'weights.bin'));
+    return tf.loadLayersModel(tf.io.fromMemory({
+        modelTopology: manifest.modelTopology,
+        weightSpecs: manifest.weightsManifest[0].weights,
+        weightData: new Uint8Array(weights).buffer
+    }));
+}
+
 module.exports = {load: load, split: split, tensors: tensors, build: build,
-    report: report, save: save, rackStarts: rackStarts, STRIDE: STRIDE};
+    report: report, save: save, loadModel: loadModel,
+    rackStarts: rackStarts, STRIDE: STRIDE};
 
 /* ------------------------------------------------------------------ */
 
