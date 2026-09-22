@@ -134,11 +134,13 @@ holding it back.
 | `phys.js` | the table: builds it out of cannon-es bodies, strikes the cue ball, reports what happened |
 | `render.js` | the three.js scene and the two cameras |
 | `render2d.js` | both views on a plain 2d canvas, for browsers that will not start WebGL |
-| `game.js` | rules, input, HUD |
+| `rules.js` | eight ball, and nothing else: it judges a shot, it does not act on one |
+| `game.js` | input, the phase machine, sound and the HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |
 | `index.html` | the page |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
+| `test/rules.test.js` | eight ball rules tests: `node test/rules.test.js` |
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
 | `train/geometry.js` | ghost ball aiming and the shortlist of pots worth playing |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
@@ -154,6 +156,19 @@ library.
 
 `lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`, `draw.js` and
 `ball_textures.js` belong to the old `demo.html` prototype and are untouched.
+
+## One rulebook
+
+`rules.js` holds the eight ball rules and nothing else, and `Rules.resolve` is a
+function rather than a procedure: give it the table and a finished shot and it
+returns what happened — the foul if there was one, who shoots next, whether the
+halves have just been decided, whether the game is over — without changing
+anything. `game.js` applies that to its own state, plays the sounds and writes
+on the screen; anything headless applies it to its own and racks up again.
+
+That split is what lets a match be played with no browser at all, which is what
+a self play trainer needs. It also means the rules can be tested directly, one
+call per case, rather than by driving a page.
 
 ## About the physics
 

@@ -133,32 +133,22 @@
      * rules
      * ------------------------------------------------------------------ */
 
+    // The rulebook itself lives in rules.js, so that a headless match can play
+    // by exactly the same rules this page does. What is left here is the state
+    // it reads and the things it deliberately does not do: the phase machine,
+    // the sounds, and the HUD.
     function groupOf(id) {
-        if (id === 0 || id === 8) return null;
-        return id < 8 ? 'solids' : 'stripes';
+        return Rules.groupOf(id);
     }
 
     function remaining(group) {
-        var left = 0;
-        world.balls.forEach(function (b) {
-            if (b.active && groupOf(b.id) === group) left++;
-        });
-        return left;
-    }
-
-    function legalTarget() {
-        var group = state.groups[state.player];
-        if (!group) return null;                       // table open: anything but the 8
-        return remaining(group) === 0 ? 'eight' : group;
+        return Rules.remaining(world, group);
     }
 
     function shoot() {
         // the legal target has to be read now: by the time the shot is judged,
         // the ball it was aimed at may already be off the table
-        shot = {
-            first: null, potted: [], rail: false,
-            breakShot: !state.broken, target: legalTarget()
-        };
+        shot = Rules.newShot(world, state.groups, state.player, state.broken);
         world.strike(cueBall, Math.cos(state.angle), Math.sin(state.angle),
             state.power, state.side, state.vert, state.elevation * Math.PI / 180);
         state.phase = 'rolling';
@@ -169,121 +159,54 @@
     }
 
     function trackEvents(events) {
+        if (shot) Rules.track(shot, events);
         events.forEach(function (e) {
             if (e.type === 'ballHit') {
-                if (shot && shot.first === null && (e.a.id === 0 || e.b.id === 0)) {
-                    shot.first = (e.a.id === 0 ? e.b.id : e.a.id);
-                }
                 Sound.click(e.speed);
             } else if (e.type === 'cushion') {
-                if (shot && shot.first !== null) shot.rail = true;
                 Sound.cushion(e.speed);
             } else if (e.type === 'pot') {
-                if (shot) shot.potted.push(e.ball.id);
                 if (e.ball.id !== 0) state.pocketed.push(e.ball.id);
                 Sound.pot();
             }
         });
     }
 
-    /** Work out what the shot just achieved, and who is up next. */
+    /**
+     * Apply what the rulebook made of the shot. `Rules.resolve` decides; this
+     * moves the game's own state to match and says it out loud.
+     */
     function resolveShot() {
-        var player = state.player;
-        var potted = shot.potted;
-        var scratch = potted.indexOf(0) >= 0;
-        var eight = potted.indexOf(8) >= 0;
-        var objects = potted.filter(function (id) { return id !== 0 && id !== 8; });
-        var target = shot.target;
+        var out = Rules.resolve(world, {
+            groups: state.groups, player: state.player, open: state.open
+        }, shot);
 
-        var foul = null;
-
-        if (shot.first === null) {
-            foul = 'No contact with any ball.';
-        } else if (target === 'eight' && shot.first !== 8) {
-            foul = 'You are on the 8 ball and hit the ' + shot.first + ' first.';
-        } else if (target && target !== 'eight' && groupOf(shot.first) !== target) {
-            foul = 'Wrong ball first: you are on ' + target + '.';
-        } else if (!target && shot.first === 8 && !shot.breakShot) {
-            foul = 'The table is open but the 8 ball is never a legal first hit.';
-        }
-
-        if (!foul && potted.length === 0 && !shot.rail) {
-            foul = 'No ball potted and nothing reached a cushion.';
-        }
-        if (scratch) foul = foul || 'Scratch - the cue ball went down.';
-
-        // the 8 ball on the break is nobody's fault: spot it and play on
-        if (eight && shot.breakShot) {
-            respot(world.ball(8));
+        if (out.respotEight) {
+            Rules.respot(world, world.ball(8));
             var idx = state.pocketed.indexOf(8);
             if (idx >= 0) state.pocketed.splice(idx, 1);
-            eight = false;
-            potted = potted.filter(function (id) { return id !== 8; });
         }
 
-        // otherwise the 8 ball ends the game one way or the other
-        if (eight) {
-            var cleared = state.groups[player] && remaining(state.groups[player]) === 0;
-            if (cleared && !foul && !scratch) {
-                endGame(player, 'potted the 8 ball to win');
-            } else {
-                endGame(1 - player, 'wins: the 8 ball went down early');
-            }
+        if (out.groups) {
+            state.groups[0] = out.groups[0];
+            state.groups[1] = out.groups[1];
+            state.open = out.open;
+        }
+
+        state.message = out.message;
+
+        if (out.gameOver) {
+            state.phase = 'over';
             return;
         }
 
-        // first legal pot off the break decides who owns what
-        if (state.open && !foul && objects.length && !shot.breakShot) {
-            var group = groupOf(objects[0]);
-            state.groups[player] = group;
-            state.groups[1 - player] = group === 'solids' ? 'stripes' : 'solids';
-            state.open = false;
-        }
-
-
-
-        var mine = objects.filter(function (id) {
-            return !state.groups[player] || groupOf(id) === state.groups[player];
-        });
-
-        if (foul) {
-            state.player = 1 - player;
-            // after a bad break the incoming player is still stuck behind the line
-            takeBallInHand(shot.breakShot);
-            state.message = foul + ' Ball in hand for player ' + (state.player + 1) + '.';
-        } else if (mine.length) {
-            state.phase = 'aiming';
-            state.message = 'Potted ' + mine.join(', ') + '. Same player again.';
+        state.player = out.player;
+        if (out.ballInHand) {
+            takeBallInHand(out.kitchenOnly);
         } else {
-            state.player = 1 - player;
             state.phase = 'aiming';
-            state.message = objects.length
-                ? 'Potted your opponent’s ball. Turn passes.'
-                : 'Nothing dropped. Player ' + (state.player + 1) + ' to shoot.';
         }
-
         state.power = 0;
-    }
-
-    /** Put a ball back on the foot spot, or as close behind it as there is room. */
-    function respot(ball) {
-        var r = world.radius;
-        for (var x = TABLE_W * 0.75; x < TABLE_W - 2 * r; x += r * 0.5) {
-            var clear = world.balls.every(function (b) {
-                return !b.active || b === ball ||
-                    Math.hypot(b.x - x, b.y - TABLE_H / 2) > 2.05 * r;
-            });
-            if (clear) {
-                ball.placeAt(x, TABLE_H / 2);
-                return;
-            }
-        }
-        ball.placeAt(TABLE_W * 0.75, TABLE_H / 2);
-    }
-
-    function endGame(winner, why) {
-        state.phase = 'over';
-        state.message = 'Player ' + (winner + 1) + ' ' + why + '. Press R for a new rack.';
     }
 
     /* ------------------------------------------------------------------ *
@@ -931,10 +854,13 @@
      * and a console message nobody reads, so say it on the page instead.
      */
     function checkVersions() {
-        var needed = ['render', 'syncBalls', 'setAim', 'setInHand', 'setSplit',
-            'setPaneRegion', 'swapViews', 'screenToTable'];
-        var missing = needed.filter(function (name) {
+        var missing = ['render', 'syncBalls', 'setAim', 'setInHand', 'setSplit',
+            'setPaneRegion', 'swapViews', 'screenToTable'].filter(function (name) {
             return typeof view[name] !== 'function';
+        });
+        // a script that did not arrive at all, rather than one that arrived stale
+        ['Rules', 'Phys', 'Panels', 'BallSkins'].forEach(function (name) {
+            if (typeof window[name] === 'undefined') missing.push(name + '.js');
         });
         if (!missing.length) return true;
 
