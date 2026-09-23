@@ -588,7 +588,16 @@
     var hudShown = null;
 
     function refreshHud() {
-        var key = state.player + '|' + state.phase + '|' + state.message;
+        // Which balls are still up belongs in the key as much as the message
+        // does: the chips in the score panel grey out the moment a ball drops,
+        // not when the shot is finally judged, so a pot has to count as
+        // something new to say.
+        var down = 0;
+        for (var i = 0; i < world.balls.length; i++) {
+            if (!world.balls[i].active) down |= 1 << i;
+        }
+
+        var key = state.player + '|' + state.phase + '|' + state.message + '|' + down;
         if (key === hudShown) return;
         hudShown = key;
         updateHud();
