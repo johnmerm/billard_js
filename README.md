@@ -290,10 +290,15 @@ learned.
 While the network has a seat, the cloth, the buttons, the spin dial and the shot
 keys are all ignored for that turn — a stray click cannot take the shot for it.
 
-It takes its shot the way a person does rather than the way a program would:
-firing the moment the search returns means the cue is never drawn at the angle
-it chose and the balls simply move. So it stands the cue on the line and lets
-you see it, draws back to the speed it picked, and only then strikes.
+It takes its shot the way a person does rather than the way a program would,
+and in no hurry. Played at the speed a person plays at, its turns go by faster
+than they can be read: the cue appears at an angle, the balls move, and whatever
+it was doing is over before you have found the ball it was aiming at. So it
+lingers on the line for a second with the guides showing, says which ball it is
+going for, draws back slowly enough to watch, rolls the balls at about two
+thirds speed, and waits a beat afterwards before starting on the next one. Your
+own shots are unaffected — you are watching your own cue ball and do not need
+the help.
 
 **Hint**, or **H**, asks the same question without handing over the table. It
 sets the aim, the spin and the cue angle to the shot it would play, so the

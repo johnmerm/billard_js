@@ -116,7 +116,8 @@ function create(opts) {
                 step: function () { return false; },
                 done: function () { return true; },
                 total: 0, played: 0,
-                result: function () { return fallback.shoot(world, pos); }
+                result: function () { return fallback.shoot(world, pos); },
+                chosen: function () { return null; }    // no pot to name
             };
         }
 
@@ -124,16 +125,19 @@ function create(opts) {
         var snap = Bot.snapshot(world);
         var queue = [];
         for (var i = 0; i < Math.min(shots, shortlist.length); i++) {
-            variations(shortlist[i], spread).forEach(function (params) {
-                queue.push(params);
+            var candidate = shortlist[i];
+            variations(candidate, spread).forEach(function (params) {
+                queue.push({params: params, candidate: candidate});
             });
         }
 
         var at = 0, tried = [], judged = [];
+        var chosen = null;            // which pot it settled on, for the page to say
 
         function step() {
             if (at >= queue.length) return false;
-            var params = queue[at++];
+            var entry = queue[at++];
+            var params = entry.params;
 
             // back to where the turn started: the page goes on stepping the
             // table between one of these and the next, and a trial has to
@@ -145,11 +149,12 @@ function create(opts) {
             var out = Match.playShot(world, trial, params);
 
             if (out.gameOver) {
-                tried.push({params: params,
+                tried.push({params: params, candidate: entry.candidate,
                     settled: out.gameOver.winner === me ? WIN : LOSS});
             } else {
                 Match.apply(world, trial, out);
-                tried.push({params: params, index: judged.length,
+                tried.push({params: params, candidate: entry.candidate,
+                    index: judged.length,
                     // a foul is worse than the position alone says: the
                     // opponent gets to put the ball wherever they like
                     penalty: out.foul ? 0.15 : 0});
@@ -168,7 +173,11 @@ function create(opts) {
                 var score = t.settled !== undefined
                     ? t.settled
                     : values[t.index] - t.penalty;
-                if (score > bestScore) { bestScore = score; best = t.params; }
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = t.params;
+                    chosen = t.candidate;
+                }
             });
 
             // Now and then play something else on purpose. Without it the next
@@ -176,7 +185,10 @@ function create(opts) {
             // steers towards, and learns nothing it did not already believe.
             if (explore && tried.length > 1 && rand() < explore) {
                 var pick = tried[Math.floor(rand() * tried.length)];
-                if (pick && pick.settled === undefined) return pick.params;
+                if (pick && pick.settled === undefined) {
+                    chosen = pick.candidate;
+                    return pick.params;
+                }
             }
 
             return best || fallback.shoot(world, pos);
@@ -187,7 +199,9 @@ function create(opts) {
             done: function () { return at >= queue.length; },
             get played() { return at; },
             total: queue.length,
-            result: result
+            result: result,
+            /** The pot it settled on, once `result` has been asked for. */
+            chosen: function () { return chosen; }
         };
     }
 

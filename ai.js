@@ -127,7 +127,12 @@ var AI = (function () {
             } while (Date.now() < until);
 
             if (thinking.search.done()) {
-                thinking.answer = {shot: thinking.search.result()};
+                var search = thinking.search;
+                thinking.answer = {
+                    shot: search.result(),
+                    // a search with nothing on has no pot to name
+                    chosen: search.chosen ? search.chosen() : null
+                };
             }
         } catch (err) {
             thinking.failed = err;

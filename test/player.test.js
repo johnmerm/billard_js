@@ -17,6 +17,7 @@ var Match = require('../train/match.js');
 var Bot = require('../train/bot.js');
 var Encode = require('../train/encode.js');
 var Player = require('../train/player.js');
+var Geometry = require('../train/geometry.js');
 
 var failures = 0;
 
@@ -149,6 +150,34 @@ var kitchen = Player.create({model: handStub, seed: 3}).place(handTable,
         ballInHand: true, kitchenOnly: true});
 check('and it respects the head string when it has to',
     kitchen && kitchen.x <= Match.TABLE_W * 0.25 + 1e-9, JSON.stringify(kitchen));
+
+console.log('a search that has nothing to search');
+
+// The page asks a finished search which pot it settled on, so every search has
+// to be able to answer - including the one that never had a pot to consider.
+// Leaving that off the empty case is invisible until a player gets snookered,
+// and then the seat switches itself off mid game.
+var nothing = table([[0, 0.3, 0.56], [1, 1.9, 0.56], [9, 1.9, 0.2], [8, 1.5, 0.9]]);
+for (var wall = 2; wall < 8; wall++) {
+    nothing.add(new Phys.Ball(wall, 1.0, 0.3 + (wall - 2) * 2.1 * nothing.radius));
+}
+var nothingPos = {groups: ['stripes', 'solids'], player: 0, open: false, broken: true};
+check('the position really has nothing on',
+    Geometry.candidates(nothing, Rules.legalBalls(nothing, nothingPos.groups, 0)).length === 0);
+
+var blind = Player.create({model: stub(function () { return 0; }), seed: 4})
+    .plan(nothing, nothingPos);
+while (blind.step()) { /* there is nothing to step through */ }
+check('it still offers a shot', !!blind.result());
+check('and still answers what it chose',
+    typeof blind.chosen === 'function' && blind.chosen() === null);
+
+var seeing = Player.create({model: stub(function () { return 0; }), seed: 4}).plan(w, pos);
+while (seeing.step()) { /* one simulated shot at a time */ }
+seeing.result();
+check('a search with a pot on names the ball it went for',
+    seeing.chosen() && seeing.chosen().ball && seeing.chosen().pocket,
+    'ball ' + (seeing.chosen() && seeing.chosen().ball.id));
 
 console.log('a whole rack against the baseline');
 

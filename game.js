@@ -33,6 +33,7 @@
         ghost: null,                // cue ball position while placing it
         hint: null,                 // the shot the network suggested, if asked
         lining: null,               // the network's shot, standing on the line
+        aiPause: 0,                 // don't start thinking before this moment
         split: 0.62,                // how much of the screen the upper view gets
         ai: 0                       // seats the network plays: 1 is player 1, 2 is
                                     // player 2, 3 is both, 0 is nobody
@@ -96,6 +97,7 @@
     function newGame() {
         if (typeof AI !== 'undefined') AI.cancel();
         state.lining = null;
+        state.aiPause = 0;
         if (!world) {
             buildWorld();
             var canvas = document.getElementById('scene');
@@ -717,6 +719,24 @@
     }
 
     /**
+     * How fast the table should run right now. Only the network's own shots are
+     * slowed: a person is watching their own cue ball and does not need help
+     * following it.
+     */
+    function paceScale() {
+        return aiPlays(state.player) ? AI_PACE : 1;
+    }
+
+    /** Wait a beat before the network starts on its next turn. */
+    function pause(ms) {
+        state.aiPause = performance.now() + ms;
+    }
+
+    function pausing() {
+        return state.aiPause && performance.now() < state.aiPause;
+    }
+
+    /**
      * Is the table the person's to play right now? Everything a player does -
      * aiming, charging, putting the ball down - goes through this, so that a
      * stray click during the network's turn cannot take the shot for it.
@@ -734,7 +754,7 @@
     function playAI() {
         if (!aiPlays(state.player)) { AI.cancel('play'); return; }
         if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
-        if (AI.busy() || state.lining) return;  // already on this, or lining one up
+        if (AI.busy() || state.lining || pausing()) return;
 
         AI.think(world, position(), 'play');
     }
@@ -776,7 +796,7 @@
             placeCueBall(answer.place.x, answer.place.y);
             updateHud();
         } else if (answer.shot && state.phase === 'aiming') {
-            takeShot(answer.shot);
+            takeShot(answer.shot, answer.chosen);
         }
     }
 
@@ -788,15 +808,37 @@
      * way a person does - it stands the cue on the line and lets you see it,
      * then draws back to the speed it picked, and only then strikes.
      */
-    var LINE_UP = 500, DRAW_BACK = 450;      // milliseconds
+    /*
+     * How the network paces itself, in milliseconds.
+     *
+     * It is not in a hurry. Played at the speed a person plays at, its turns go
+     * by faster than they can be read: the cue appears at an angle, the balls
+     * move, and whatever it was doing is over before you have found the ball it
+     * was aiming at. So it lingers on the line with the guides showing, draws
+     * back slowly enough to see, rolls the balls at about two thirds speed, and
+     * waits a beat afterwards before starting on the next one.
+     */
+    var LINE_UP = 1100;              // cue on the line, guides showing
+    var DRAW_BACK = 550;             // pulling back to the speed it chose
+    var AFTER_SHOT = 900;            // a beat to take in where the balls finished
+    var AI_PACE = 0.65;              // how fast its shots roll, against real time
 
-    function takeShot(shot) {
+    function takeShot(shot, chosen) {
         state.angle = shot.angle;
         state.side = shot.side || 0;
         state.vert = shot.vert || 0;
         setElevation((shot.elevation || 0) * 180 / Math.PI);
         state.power = 0;
         drawSpinWidget();
+
+        // Say what it is going for. The guides on the cloth show it too, but
+        // reading a line takes longer than reading a number, and knowing which
+        // ball to watch is most of being able to follow the game.
+        if (chosen && chosen.ball) {
+            state.message = 'Player ' + (state.player + 1) + ' is going for the ' +
+                chosen.ball.id + '.';
+            updateHud();
+        }
 
         state.lining = {
             power: Phys.clamp(shot.power, MIN_POWER, MAX_POWER),
@@ -1047,7 +1089,7 @@
     function tick(now) {
         var dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
         last = now;
-        dt *= state.timeScale;      // 1 is real time; lower runs the table slowly
+        dt *= state.timeScale * paceScale();   // 1 is real time; lower is slower
 
         sweepAim(now);
         lineUp(now);
@@ -1058,6 +1100,7 @@
             trackEvents(world.step(dt));
             if (state.phase === 'rolling' && world.atRest()) {
                 resolveShot();
+                if (aiPlays(state.player)) pause(AFTER_SHOT);
                 updateHud();
             }
         }
