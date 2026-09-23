@@ -106,15 +106,25 @@ function Renderer(canvas, world) {
         scene.add(mesh);
     });
 
-    // pocket holes
+    // Pocket holes. The rounded mouth is what a player recognises, but the
+    // cloth is cut square - cannon has boxes and not much else - so the cut is
+    // drawn too. Without it there is a sliver near each corner where a ball
+    // falls through what looks like cloth.
+    var holeMaterial = new THREE.MeshBasicMaterial({color: 0x07090b});
     world.pockets.forEach(function (p) {
-        var hole = new THREE.Mesh(
-            new THREE.CircleGeometry(p.radius * 1.05, 28),
-            new THREE.MeshBasicMaterial({color: 0x07090b})
-        );
+        var hole = new THREE.Mesh(new THREE.CircleGeometry(p.radius * 1.05, 28), holeMaterial);
         hole.rotation.x = -Math.PI / 2;
         hole.position.set(p.x - W / 2, 0.004, -(p.y - H / 2));
         scene.add(hole);
+    });
+
+    (world.pocketCuts || []).forEach(function (c) {
+        var cut = new THREE.Mesh(
+            new THREE.PlaneGeometry(c.x2 - c.x1, c.y2 - c.y1), holeMaterial);
+        cut.rotation.x = -Math.PI / 2;
+        cut.position.set((c.x1 + c.x2) / 2 - W / 2, 0.004,
+            -((c.y1 + c.y2) / 2 - H / 2));
+        scene.add(cut);
     });
 
     // head string and foot spot, the markings you aim off

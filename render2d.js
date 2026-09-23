@@ -143,8 +143,13 @@ function Renderer2D(canvas, world) {
             ctx.fill();
         });
 
+        // the rounded mouth a player recognises, and the square the cloth is
+        // actually cut to, so nothing falls through what looks like cloth
         world.pockets.forEach(function (p) {
             disc(sx(p.x, p.y), sy(p.x, p.y), p.radius * 1.05 * scale, '#07090b');
+        });
+        (world.pocketCuts || []).forEach(function (c) {
+            fillBox(c.x1, c.y1, c.x2, c.y2, '#07090b', 0);
         });
 
         // head string and foot spot, the markings you aim off
@@ -523,6 +528,10 @@ function Renderer2D(canvas, world) {
 
         world.pockets.forEach(function (p) {
             fillPoly3(ring(p.x, p.y, p.radius * 1.05, 0.002, 20), '#07090b');
+        });
+        (world.pocketCuts || []).forEach(function (c) {
+            fillPoly3([[c.x1, c.y1, 0.002], [c.x2, c.y1, 0.002],
+                [c.x2, c.y2, 0.002], [c.x1, c.y2, 0.002]], '#07090b');
         });
 
         stroke3([[W * 0.25, 0, 0.003], [W * 0.25, H, 0.003]],

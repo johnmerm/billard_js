@@ -335,9 +335,9 @@ and it follows through.
 
 `phys.js` is the table around that:
 
-- **The bed is exactly the playing surface.** There are no pocket trigger zones.
-  Rails seal the cloth everywhere except the six mouths, so a ball that crosses
-  one runs out of cloth and falls, and you watch it drop. It counts as potted
+- **The pockets are holes in the bed.** There are no trigger zones. The cloth is
+  cut away at the six mouths, so a ball that gets far enough over one runs out of
+  cloth and falls, and you watch it drop. It counts as potted
   when it passes below the bed.
 - **Cushions are boxes** built from a list of segments that stop short of each
   pocket and are cut back at 45 degrees. The renderer builds the visible rubber

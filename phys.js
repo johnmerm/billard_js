@@ -230,12 +230,61 @@
     Table.prototype.build = function () {
         var W = this.width, H = this.height, r = this.radius;
 
-        // The bed is exactly the playing surface, so the only way off it is
-        // through a pocket mouth: a ball that crosses one runs out of cloth and
-        // drops, the way it does on a real table.
+        // The bed is the playing surface with the pockets cut out of it, so the
+        // only way off it is down a hole: a ball that gets far enough over one
+        // runs out of cloth and drops, the way it does on a real table.
+        //
+        // It was one box across the whole table to begin with, on the reasoning
+        // that the rail line is where the cloth ends. It is not - the pockets
+        // are holes in the middle of that line, and a ball could sit dead centre
+        // over one, on top of cloth that should not have been there, hovering
+        // over the hole it was supposed to have fallen down.
+        //
+        // Cannon has boxes and not much else, so the holes are square. The
+        // rounded shape a player sees is the drawn one; what this has to get
+        // right is where the support stops, and a square notch the size of the
+        // mouth does that well enough - a ball over the middle of a pocket falls,
+        // one on the cloth does not, and the jaws already shape the approach.
         var bed = new CANNON.Body({mass: 0, material: clothMaterial});
-        bed.addShape(new CANNON.Box(new CANNON.Vec3(W / 2, 0.02, H / 2)));
-        bed.position.set(0, -0.02, 0);
+        var corner = 2.0 * r;        // how far a corner pocket eats into the bed
+        var side = 1.75 * r;         // and a middle one, along the rail and back
+
+        // Where the cloth is not, so a renderer can draw the hole that was
+        // actually cut rather than a rounder one that does not match it.
+        this.pocketCuts = [
+            {x1: 0, y1: 0, x2: corner, y2: corner},
+            {x1: W - corner, y1: 0, x2: W, y2: corner},
+            {x1: 0, y1: H - corner, x2: corner, y2: H},
+            {x1: W - corner, y1: H - corner, x2: W, y2: H},
+            {x1: W / 2 - side, y1: 0, x2: W / 2 + side, y2: side},
+            {x1: W / 2 - side, y1: H - side, x2: W / 2 + side, y2: H}
+        ];
+
+        /** One rectangle of cloth, in table coordinates. */
+        function cloth(x1, y1, x2, y2) {
+            if (x2 - x1 < 1e-6 || y2 - y1 < 1e-6) return;
+            bed.addShape(
+                new CANNON.Box(new CANNON.Vec3((x2 - x1) / 2, 0.02, (y2 - y1) / 2)),
+                new CANNON.Vec3((x1 + x2) / 2 - W / 2, -0.02, H / 2 - (y1 + y2) / 2)
+            );
+        }
+
+        // Three bands up the table, and the mirror of the first two at the far
+        // rail. Nearest the rail the corners and the middle pocket are all
+        // missing; a little further in only the corners are; past that the cloth
+        // runs the full width.
+        [0, 1].forEach(function (end) {
+            var flip = function (y) { return end ? H - y : y; };
+            var lo = Math.min(flip(0), flip(side)), hi = Math.max(flip(0), flip(side));
+            cloth(corner, lo, W / 2 - side, hi);
+            cloth(W / 2 + side, lo, W - corner, hi);
+
+            lo = Math.min(flip(side), flip(corner));
+            hi = Math.max(flip(side), flip(corner));
+            cloth(corner, lo, W - corner, hi);
+        });
+        cloth(0, corner, W, H - corner);
+
         bed.isCloth = true;
         this.cannon.addBody(bed);
         this.bed = bed;

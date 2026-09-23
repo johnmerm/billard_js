@@ -297,6 +297,52 @@ console.log('balls stay on the cloth');
     check('and the ball is still on the table', b.active);
 })();
 
+console.log('the cloth stops where the pocket starts');
+
+/*
+ * The bed used to be one box across the whole table, on the reasoning that the
+ * rail line is where the cloth ends. It is not: the pockets are holes in the
+ * middle of that line, so a ball could come to rest dead centre over one, held
+ * up by cloth that should not have been there, hovering over the hole it was
+ * supposed to have fallen down.
+ */
+(function () {
+    var W = 2.24, H = 1.12;
+
+    function settlesAt(x, y) {
+        var w = table();
+        var b = w.add(new Phys.Ball(0, x, y));
+        var t = 0;
+        while (t < 5 && b.active) { w.step(1 / 240); t += 1 / 240; }
+        return b.active;
+    }
+
+    var hovering = [];
+    table().pockets.forEach(function (p) {
+        // the middle of the mouth, and a little way into it from each side
+        [[0, 0], [0.4, 0], [0, 0.4], [-0.4, 0], [0, -0.4]].forEach(function (off) {
+            var x = p.x + off[0] * p.radius, y = p.y + off[1] * p.radius;
+            if (x < 0 || x > W || y < 0 || y > H) return;      // off the table already
+            if (settlesAt(x, y)) hovering.push([x.toFixed(3), y.toFixed(3)].join());
+        });
+    });
+    check('a ball over a pocket mouth falls in rather than hovering',
+        hovering.length === 0, hovering.join(' | '));
+
+    check('and one out on the cloth does not', settlesAt(W / 2, H / 2) &&
+        settlesAt(0.4, 0.3) && settlesAt(W - 0.4, H - 0.3));
+
+    // the cloth is in pieces now, and a ball must not catch on the joins
+    var w = table();
+    var b = w.add(new Phys.Ball(0, 0.30, 0.25));
+    w.strike(b, 1, 0, 1.8, 0, 0, 0);
+    var t = 0;
+    while (!w.atRest() && t < 20) { w.step(1 / 240); t += 1 / 240; }
+    check('a ball rolling clear of the pockets keeps its line',
+        b.active && Math.abs(b.y - 0.25) < 0.002,
+        'drifted ' + ((b.y - 0.25) * 1000).toFixed(1) + ' mm');
+})();
+
 console.log('pockets are holes, not trigger zones');
 
 (function () {
