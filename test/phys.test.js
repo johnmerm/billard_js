@@ -63,6 +63,34 @@ console.log('rest and friction');
     check('and it rolls for a few seconds', r.time > 1.5 && r.time < 30, r.time.toFixed(2) + 's');
 })();
 
+/*
+ * A ball turning on the spot is going nowhere, so it deliberately does not hold
+ * play up - but it does have to stop turning, and be seen to. Left to the
+ * rolling decay a cue ball hit with english is still spinning at a quarter turn
+ * a second when the table calls itself at rest, and takes another six seconds to
+ * become invisible without ever quite reaching nothing. On a table where the
+ * balls are drawn and nothing else is moving, that reads as a bug.
+ */
+(function () {
+    var w = table();
+    var cue = w.add(new Phys.Ball(0, 0.5, 0.56));
+    w.add(new Phys.Ball(1, 1.2, 0.56));
+    w.strike(cue, 1, 0, 3.0, 0.7, 0, 0);        // as much side spin as the cue gives
+    settle(w, 60);
+
+    function english() {
+        return Math.max.apply(null, w.balls.filter(function (b) { return b.active; })
+            .map(function (b) { return Math.abs(b.body.angularVelocity.y); }));
+    }
+
+    check('a table at rest is nearly done turning', english() < 0.2,
+        english().toFixed(3) + ' rad/s left');
+
+    for (var k = 0; k < 240; k++) w.step(1 / 120);      // two more seconds
+    check('and a second later nothing is turning at all', english() === 0,
+        english().toFixed(6) + ' rad/s left');
+})();
+
 console.log('spin');
 
 (function () {

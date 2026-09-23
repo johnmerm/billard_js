@@ -29,11 +29,16 @@ var Match = typeof Match !== 'undefined' ? Match : require('./match.js');
 /**
  * Enough of the table to undo a trial shot.
  *
- * Positions are the easy half: `placeAt` stops the ball and puts a potted one
- * back on the cloth by itself, and a uniform sphere's orientation changes
- * nothing about what it does next.
+ * Positions are the obvious part: `placeAt` stops the ball and puts a potted
+ * one back on the cloth by itself.
  *
- * The other half is the order the bodies sit in. Potting one takes it out of
+ * Orientation is the part that is easy to miss. It changes nothing about how a
+ * sphere behaves, so a headless match never needs it - but a renderer draws it,
+ * and a player thinking about its turn plays two dozen trial shots without
+ * moving a ball an inch. Leave the orientations where the trials left them and
+ * every ball on the table spins on the spot while it thinks.
+ *
+ * The third part is the order the bodies sit in. Potting one takes it out of
  * the physics world and putting it back appends it, and the solver works
  * through its equations in that order, so a table restored in a different order
  * is not the same table: the next shot comes out a little differently, and by
@@ -42,7 +47,9 @@ var Match = typeof Match !== 'undefined' ? Match : require('./match.js');
 function snapshot(world) {
     return {
         balls: world.balls.map(function (b) {
-            return {ball: b, active: b.active, x: b.x, y: b.y};
+            var q = b.body.quaternion;
+            return {ball: b, active: b.active, x: b.x, y: b.y,
+                qx: q.x, qy: q.y, qz: q.z, qw: q.w};
         }),
         bodies: world.cannon.bodies.slice(),
         carry: world.carry
@@ -53,6 +60,7 @@ function restore(world, snap) {
     snap.balls.forEach(function (s) {
         if (s.active) s.ball.placeAt(s.x, s.y);
         else if (s.ball.active) s.ball.lift();
+        s.ball.body.quaternion.set(s.qx, s.qy, s.qz, s.qw);
     });
 
     var bodies = world.cannon.bodies;

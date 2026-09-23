@@ -25,9 +25,12 @@ function check(name, ok, detail) {
     }
 }
 
+/** Everything a restore has to put back, orientation included. */
 function layout(world) {
     return world.balls.map(function (b) {
-        return b.id + ':' + (b.active ? b.x.toFixed(9) + ',' + b.y.toFixed(9) : 'off');
+        var q = b.body.quaternion;
+        return b.id + ':' + (b.active ? b.x.toFixed(9) + ',' + b.y.toFixed(9) : 'off') +
+            ':' + [q.x, q.y, q.z, q.w].map(function (n) { return n.toFixed(9); }).join(',');
     }).join('|');
 }
 

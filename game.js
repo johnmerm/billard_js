@@ -32,6 +32,7 @@
         pocketed: [],
         ghost: null,                // cue ball position while placing it
         hint: null,                 // the shot the network suggested, if asked
+        lining: null,               // the network's shot, standing on the line
         split: 0.62,                // how much of the screen the upper view gets
         ai: 0                       // seats the network plays: 1 is player 1, 2 is
                                     // player 2, 3 is both, 0 is nobody
@@ -94,6 +95,7 @@
 
     function newGame() {
         if (typeof AI !== 'undefined') AI.cancel();
+        state.lining = null;
         if (!world) {
             buildWorld();
             var canvas = document.getElementById('scene');
@@ -332,6 +334,7 @@
     /** Let go: only the pointer that started the charge can take the shot. */
     function releaseCharge(pointerId) {
         if (state.phase !== 'charging') return;
+        if (!humanTurn()) return;       // the network is drawing its own cue back
         if (chargePointer !== null && pointerId !== undefined && pointerId !== chargePointer) return;
         chargePointer = null;
         // read the power now rather than trusting the last frame, so a slow
@@ -731,7 +734,7 @@
     function playAI() {
         if (!aiPlays(state.player)) { AI.cancel('play'); return; }
         if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
-        if (AI.busy()) return;                  // already on this, or on a hint
+        if (AI.busy() || state.lining) return;  // already on this, or lining one up
 
         AI.think(world, position(), 'play');
     }
@@ -777,15 +780,57 @@
         }
     }
 
-    /** Aim and fire the shot the network picked. */
+    /**
+     * Line the shot up, then play it.
+     *
+     * Firing the moment the search returns means the cue is never drawn at the
+     * angle it chose: the balls simply move. So the network takes its shot the
+     * way a person does - it stands the cue on the line and lets you see it,
+     * then draws back to the speed it picked, and only then strikes.
+     */
+    var LINE_UP = 500, DRAW_BACK = 450;      // milliseconds
+
     function takeShot(shot) {
         state.angle = shot.angle;
         state.side = shot.side || 0;
         state.vert = shot.vert || 0;
         setElevation((shot.elevation || 0) * 180 / Math.PI);
-        state.power = Phys.clamp(shot.power, MIN_POWER, MAX_POWER);
+        state.power = 0;
         drawSpinWidget();
-        shoot();
+
+        state.lining = {
+            power: Phys.clamp(shot.power, MIN_POWER, MAX_POWER),
+            since: performance.now()
+        };
+    }
+
+    /**
+     * Walk a lined up shot through to the strike. The cue pulls back as the
+     * power climbs, which is the same thing the renderer draws for a person
+     * holding the shoot button down.
+     */
+    function lineUp(now) {
+        if (!state.lining) return;
+        if (state.phase !== 'aiming' && state.phase !== 'charging') {
+            state.lining = null;                 // the turn moved on underneath it
+            return;
+        }
+
+        var held = now - state.lining.since;
+        if (held < LINE_UP) {
+            state.power = 0;                     // just standing on the line
+            return;
+        }
+
+        var through = Math.min((held - LINE_UP) / DRAW_BACK, 1);
+        state.phase = 'charging';
+        state.power = MIN_POWER + (state.lining.power - MIN_POWER) * through;
+
+        if (through >= 1) {
+            state.power = state.lining.power;
+            state.lining = null;
+            shoot();
+        }
     }
 
     /* ---------------------------- the seats --------------------------- */
@@ -1005,8 +1050,9 @@
         dt *= state.timeScale;      // 1 is real time; lower runs the table slowly
 
         sweepAim(now);
+        lineUp(now);
 
-        if (state.phase === 'charging') state.power = chargedPower(now);
+        if (state.phase === 'charging' && !state.lining) state.power = chargedPower(now);
 
         if (dt > 0) {
             trackEvents(world.step(dt));

@@ -177,6 +177,8 @@
         this.slidingFriction = opts.slidingFriction !== undefined ? opts.slidingFriction : 0.2;
         this.rollingFriction = opts.rollingFriction !== undefined ? opts.rollingFriction : 0.012;
         this.spinFriction = opts.spinFriction !== undefined ? opts.spinFriction : 0.6;
+        this.stoppedSpinFriction = opts.stoppedSpinFriction !== undefined
+            ? opts.stoppedSpinFriction : 0.95;
 
         var world = new CANNON.World();
         world.gravity.set(0, -G, 0);
@@ -344,6 +346,10 @@
         var slide = this.slidingFriction * G;        // how hard the cloth bites
         var drop = this.rollingFriction * G * h;     // and what it costs to roll
         var spinDecay = Math.pow(1 - this.spinFriction, h);
+        // A ball going nowhere scrubs its whole contact patch against the cloth
+        // rather than rolling over it, so the last of the english comes off much
+        // faster than it does while the ball is still travelling.
+        var stoppedDecay = Math.pow(1 - this.stoppedSpinFriction, h);
 
         // A ball on ball hit is over in a fraction of a millisecond; the cloth
         // cannot do anything in that time, and letting it try would scrub off
@@ -396,12 +402,17 @@
             // that is a cue ball the instant after a full ball hit, and the spin
             // it holds is what makes it follow through or draw back.
             // Only spin about a horizontal axis can set the ball moving again;
-            // spin about the vertical just turns on the spot, so it is left to
-            // die down on its own rather than holding up the shot.
+            // spin about the vertical just turns on the spot, so it does not
+            // hold up the shot - but it does have to stop, and exactly. Left to
+            // the rolling decay it takes six seconds to become invisible and
+            // never quite reaches nothing, which on a table where nothing else
+            // is moving reads as a bug rather than as physics.
             var still = Math.sqrt(v.x * v.x + v.z * v.z);
             if (still < REST_SPEED && Math.abs(w.x) + Math.abs(w.z) < 1.0) {
                 v.x = v.z = 0;
                 w.x = w.z = 0;
+                w.y *= stoppedDecay;
+                if (Math.abs(w.y) < 0.02) w.y = 0;
             }
         }
     };

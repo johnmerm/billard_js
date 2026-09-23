@@ -290,6 +290,11 @@ learned.
 While the network has a seat, the cloth, the buttons, the spin dial and the shot
 keys are all ignored for that turn — a stray click cannot take the shot for it.
 
+It takes its shot the way a person does rather than the way a program would:
+firing the moment the search returns means the cue is never drawn at the angle
+it chose and the balls simply move. So it stands the cue on the line and lets
+you see it, draws back to the speed it picked, and only then strikes.
+
 **Hint**, or **H**, asks the same question without handing over the table. It
 sets the aim, the spin and the cue angle to the shot it would play, so the
 guides on the cloth show what it means, and marks the power bar at the speed it
