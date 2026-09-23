@@ -47,8 +47,9 @@ with a keyboard.
 | the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
 | the cue ball pane | tap it to swap the two views |
 | the seam between the views | drag it to give one of them more room |
-| the top right buttons | swap views, sound, AI opponent, dock panels, new rack |
-| **AI opponent**, or **B** | one click hands player 2 to the network, two hands it both seats, three switches it off |
+| the top right buttons | swap views, sound, hint, dock panels, new rack |
+| the **AI** chip on a player's line | hand that seat to the network, or take it back |
+| **Hint**, or **H** | ask the network what it would play, without it playing it |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
 | ball in hand | point at the spot and click or tap — the ball waits off the table until you put it down, so looking for a spot cannot nudge the balls already on it |
 
@@ -280,13 +281,20 @@ a static file like everything else.
 
 ### Playing against it
 
-**AI opponent** in the top right, or **B**, hands player 2 to the trained
-network. Click it again and it takes both seats: the game plays itself, racking
-up again a few seconds after each one finishes, which is the easiest way to see
-what it has learned. A third click hands the table back.
+Each player's line in the score panel carries a small **AI** chip. Pressing it
+hands that seat to the network; pressing it again takes the seat back. Either
+seat, or both — with both taken the game plays itself, racking up again a few
+seconds after each one finishes, which is the easiest way to see what it has
+learned.
 
 While the network has a seat, the cloth, the buttons, the spin dial and the shot
 keys are all ignored for that turn — a stray click cannot take the shot for it.
+
+**Hint**, or **H**, asks the same question without handing over the table. It
+sets the aim, the spin and the cue angle to the shot it would play, so the
+guides on the cloth show what it means, and marks the power bar at the speed it
+chose. How hard to hit it is still yours: hold SHOOT and let go at the mark. Ask
+it with the ball in hand and it marks the spot to put it down instead.
 
 It plays the same code the trainer does — `geometry.js` finds the pots,
 `match.js` plays each one out in the physics, `encode.js` describes what it

@@ -31,6 +31,7 @@
         message: 'Break them up: place the cue ball behind the line and fire.',
         pocketed: [],
         ghost: null,                // cue ball position while placing it
+        hint: null,                 // the shot the network suggested, if asked
         split: 0.62,                // how much of the screen the upper view gets
         ai: 0                       // seats the network plays: 1 is player 1, 2 is
                                     // player 2, 3 is both, 0 is nobody
@@ -149,6 +150,7 @@
     }
 
     function shoot() {
+        clearHint();
         // the legal target has to be read now: by the time the shot is judged,
         // the ball it was aimed at may already be off the table
         shot = Rules.newShot(world, state.groups, state.player, state.broken);
@@ -234,6 +236,7 @@
 
     function placeCueBall(x, y) {
         if (!placementLegal(x, y)) return false;
+        clearHint();
         cueBall.placeAt(x, y);
         state.phase = 'aiming';
         state.message = 'Player ' + (state.player + 1) + ' to shoot.';
@@ -441,8 +444,8 @@
             case 'KeyV':
                 view.swapViews();
                 break;
-            case 'KeyB':
-                toggleAI();             // A and D are already english
+            case 'KeyH':
+                askHint();
                 break;
             case 'KeyM':
                 Sound.toggle();
@@ -557,7 +560,14 @@
         for (var p = 0; p < 2; p++) {
             var el = document.getElementById('group' + p);
             var group = state.groups[p];
-            var html = '<b>Player ' + (p + 1) + '</b> <span class="grp">' + groupLabel(p) + '</span> ';
+            var html = '<button type="button" class="seat' +
+                (aiPlays(p) ? ' on' : '') + (waiting['seat' + p] ? ' loading' : '') +
+                '" data-seat="' + p + '" title="' +
+                (aiPlays(p) ? 'Player ' + (p + 1) + ' is played by the network' +
+                    ' \u2014 click to take the seat back'
+                    : 'Let the network play player ' + (p + 1)) +
+                '">AI</button>' +
+                '<b>Player ' + (p + 1) + '</b> <span class="grp">' + groupLabel(p) + '</span> ';
             var ids = group === 'solids' ? [1, 2, 3, 4, 5, 6, 7]
                 : group === 'stripes' ? [9, 10, 11, 12, 13, 14, 15] : [];
             ids.forEach(function (id) {
@@ -585,6 +595,17 @@
         var bar = document.getElementById('powerfill');
         if (bar) bar.style.width = pct + '%';
 
+        // where the suggested shot sits on the bar, for a player to charge up to
+        var mark = document.getElementById('powermark');
+        if (mark) {
+            var want = state.hint && state.hint.power;
+            mark.style.display = want ? 'block' : 'none';
+            if (want) {
+                mark.style.left = Math.max(0, Math.min(100,
+                    100 * (want - MIN_POWER) / (MAX_POWER - MIN_POWER))) + '%';
+            }
+        }
+
         // the shoot button fills up as it is held, so a thumb over the bar
         // still knows how hard the shot is going to be
         var fill = document.getElementById('shootfill');
@@ -592,6 +613,14 @@
 
         var shoot = document.getElementById('shoot');
         if (shoot) shoot.disabled = !(state.phase === 'aiming' || state.phase === 'charging');
+
+        // asking for a hint only means something on your own turn
+        var hint = document.getElementById('ai');
+        if (hint) {
+            hint.disabled = !humanTurn() ||
+                (state.phase !== 'aiming' && state.phase !== 'ballInHand');
+            hint.classList.toggle('loading', !!waiting.hint);
+        }
     }
 
     /**
@@ -692,112 +721,120 @@
     function humanTurn() {
         return !aiPlays(state.player);
     }
-
+    /**
+     * Hand a turn to the network when it is that player's.
+     *
+     * Called once a frame from `pumpAI`. It never blocks: starting a turn only
+     * sets the search up, and the shot is played on whichever frame the answer
+     * arrives.
+     */
     function playAI() {
-        if (!state.ai || typeof AI === 'undefined' || !AI.ready()) return;
-        if (!aiPlays(state.player)) { AI.cancel(); return; }
+        if (!aiPlays(state.player)) { AI.cancel('play'); return; }
         if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
+        if (AI.busy()) return;                  // already on this, or on a hint
 
-        if (!AI.busy()) {
-            AI.think(world, {
-                groups: state.groups, player: state.player, open: state.open,
-                broken: state.broken, ballInHand: state.phase === 'ballInHand',
-                kitchenOnly: state.kitchenOnly
-            });
-            return;
-        }
+        AI.think(world, position(), 'play');
+    }
+
+    /** The position as the players and the network both see it. */
+    function position() {
+        return {
+            groups: state.groups, player: state.player, open: state.open,
+            broken: state.broken, ballInHand: state.phase === 'ballInHand',
+            kitchenOnly: state.kitchenOnly
+        };
+    }
+
+    /**
+     * Give whatever is being worked on a slice of this frame, and act on it
+     * once it is done. Both the seats the network plays and the hint button go
+     * through here, so only one turn is ever being thought about at a time.
+     */
+    function pumpAI() {
+        if (typeof AI === 'undefined' || !AI.ready()) return;
+        if (state.ai) playAI();
+        if (!AI.busy()) return;
 
         AI.tick(6);
         var answer = AI.poll();
         if (!answer) return;
 
         if (answer.failed) {
-            state.ai = 0;                   // stop rather than sit there stuck
+            if (answer.purpose === 'play') state.ai = 0;   // rather than sit there stuck
             state.message = 'The AI stopped: ' + answer.failed.message;
-            updateAiButton();
             updateHud();
             return;
         }
+
+        if (answer.purpose === 'hint') { showHint(answer); return; }
 
         if (answer.place) {
             state.ghost = answer.place;
             placeCueBall(answer.place.x, answer.place.y);
             updateHud();
         } else if (answer.shot && state.phase === 'aiming') {
-            state.angle = answer.shot.angle;
-            state.side = answer.shot.side || 0;
-            state.vert = answer.shot.vert || 0;
-            setElevation((answer.shot.elevation || 0) * 180 / Math.PI);
-            state.power = Phys.clamp(answer.shot.power, MIN_POWER, MAX_POWER);
-            drawSpinWidget();
-            shoot();
+            takeShot(answer.shot);
         }
     }
 
-    // Off, then the network takes player 2, then it takes both seats and the
-    // game plays itself. A fourth click is back to off.
-    var AI_SEATS = [
-        {seats: 0, label: 'AI opponent',
-            title: 'Let the network play player 2 (B)'},
-        {seats: 2, label: 'AI: player 2',
-            title: 'The network is playing player 2. Click again and it plays both (B)'},
-        {seats: 3, label: 'AI: both',
-            title: 'The network is playing itself. Click again to switch it off (B)'}
-    ];
-
-    function aiStep() {
-        for (var i = 0; i < AI_SEATS.length; i++) {
-            if (AI_SEATS[i].seats === state.ai) return i;
-        }
-        return 0;
+    /** Aim and fire the shot the network picked. */
+    function takeShot(shot) {
+        state.angle = shot.angle;
+        state.side = shot.side || 0;
+        state.vert = shot.vert || 0;
+        setElevation((shot.elevation || 0) * 180 / Math.PI);
+        state.power = Phys.clamp(shot.power, MIN_POWER, MAX_POWER);
+        drawSpinWidget();
+        shoot();
     }
 
-    function updateAiButton() {
-        var button = document.getElementById('ai');
-        if (!button) return;
+    /* ---------------------------- the seats --------------------------- */
 
-        var step = AI_SEATS[aiStep()];
-        button.classList.toggle('on', !!state.ai);
-        button.classList.toggle('both', state.ai === 3);
-        button.title = step.title;
-
-        var text = button.querySelector('.btxt');
-        if (text) text.textContent = step.label;
+    /** Turn one seat over to the network, or take it back. */
+    function setSeat(player, on) {
+        var bit = 1 << player;
+        state.ai = on ? (state.ai | bit) : (state.ai & ~bit);
+        if (!aiPlays(state.player)) AI.cancel('play');
+        updateHud();
     }
 
     /**
-     * Step the network through the seats it plays. The first time costs a
-     * download - a megabyte and a half of tensorflow plus the model - so the
-     * button says what it is doing rather than appearing to have been ignored.
+     * A seat button was pressed. The model has to be there before the network
+     * can take a seat, and the first time that is a download - a megabyte and a
+     * half of tensorflow plus the model - so the button says what it is doing
+     * rather than appearing to have been ignored.
      */
-    function toggleAI() {
-        var next = AI_SEATS[(aiStep() + 1) % AI_SEATS.length].seats;
+    function askSeat(player) {
+        if (aiPlays(player)) { setSeat(player, false); return; }
 
-        if (!next) {
-            state.ai = 0;
-            AI.cancel();
-            updateAiButton();
-            return;
-        }
-
-        function take() {
-            state.ai = next;
-            updateAiButton();
-            state.message = next === 3
-                ? 'The network is playing itself. Press B to take a seat back.'
-                : 'The network is playing player 2.';
+        withModel(function () {
+            setSeat(player, true);
+            state.message = state.ai === 3
+                ? 'The network is playing itself.'
+                : 'The network is playing player ' + (player + 1) + '.';
             updateHud();
-        }
+        }, 'seat' + player);
+    }
 
-        if (AI.ready()) { take(); return; }
+    /**
+     * Run something once the model is loaded, marking `busyId` as waiting in
+     * the meantime. Every way into the network goes through here, so it is
+     * fetched at most once however it is asked for.
+     */
+    var waiting = {};
 
-        var button = document.getElementById('ai');
-        if (button) button.classList.add('loading');
+    function withModel(then, busyId) {
+        if (AI.ready()) { then(); return; }
+        if (waiting[busyId]) return;
+
+        waiting[busyId] = true;
+        updateHud();
         AI.load().then(function () {
-            if (button) button.classList.remove('loading');
-            take();
+            waiting[busyId] = false;
+            updateHud();
+            then();
         }).catch(function (err) {
-            if (button) button.classList.remove('loading');
+            waiting[busyId] = false;
             // A page opened straight off the disk cannot fetch the model:
             // browsers refuse file:// requests from scripts. The game plays
             // fine that way, but the AI needs the files served.
@@ -808,6 +845,60 @@
             updateHud();
             if (window.console) window.console.error('billiards: ai', err);
         });
+    }
+
+    /* ---------------------------- the assist -------------------------- */
+
+    /**
+     * Ask what the network would do, without it doing it.
+     *
+     * The aim, the spin and the cue angle are set to its answer, so the guides
+     * on the table show the shot it means. How hard is left to the player: the
+     * power bar gets a mark at the speed it chose, and the shot is still taken
+     * by hand.
+     */
+    function askHint() {
+        if (!humanTurn() || (state.phase !== 'aiming' && state.phase !== 'ballInHand')) {
+            return;
+        }
+        if (AI.busy()) return;
+
+        withModel(function () {
+            if (!humanTurn()) return;           // the turn moved on while it loaded
+            AI.think(world, position(), 'hint');
+            state.message = 'Working out a shot\u2026';
+            updateHud();
+        }, 'hint');
+    }
+
+    function showHint(answer) {
+        if (answer.place) {
+            state.ghost = answer.place;
+            state.hint = {place: answer.place};
+            state.message = 'Put the cue ball on the marked spot.';
+            updateHud();
+            return;
+        }
+        if (!answer.shot) return;
+
+        var shot = answer.shot;
+        state.angle = shot.angle;
+        state.side = shot.side || 0;
+        state.vert = shot.vert || 0;
+        setElevation((shot.elevation || 0) * 180 / Math.PI);
+        drawSpinWidget();
+
+        state.hint = {power: Phys.clamp(shot.power, MIN_POWER, MAX_POWER)};
+        state.message = 'Aim and spin set. Hold SHOOT to the mark on the power bar.';
+        updateHud();
+        updatePowerBar();
+    }
+
+    /** A hint is about one shot; anything else that happens clears it. */
+    function clearHint() {
+        if (!state.hint) return;
+        state.hint = null;
+        updatePowerBar();
     }
 
     /**
@@ -935,7 +1026,7 @@
             view.setInHand(null);
         }
 
-        playAI();
+        pumpAI();
         keepPlaying();
 
         placeInset();
@@ -1169,9 +1260,19 @@
 
         document.getElementById('newgame').addEventListener('click', newGame);
         document.getElementById('swap').addEventListener('click', function () { view.swapViews(); });
+        var panel = document.getElementById('status');
+        if (panel) {
+            panel.addEventListener('click', function (e) {
+                var seat = e.target.closest && e.target.closest('.seat');
+                if (!seat) return;
+                askSeat(+seat.getAttribute('data-seat'));
+                e.stopPropagation();
+            });
+        }
+
         var ai = document.getElementById('ai');
         if (ai) {
-            ai.addEventListener('click', function () { toggleAI(); this.blur(); });
+            ai.addEventListener('click', function () { askHint(); this.blur(); });
         }
         document.getElementById('dock').addEventListener('click', function () {
             Panels.resetAll();      // every panel back into its band

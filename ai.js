@@ -76,7 +76,7 @@ var AI = (function () {
      *     it and put back, so nothing may read it between a tick and a poll.
      * @param {Object} pos    {groups, player, open, broken, ballInHand, kitchenOnly}
      */
-    function think(world, pos) {
+    function think(world, pos, purpose) {
         if (!model) return null;
 
         // spread 3 means each pot is tried nine ways - three speeds, and with
@@ -91,6 +91,7 @@ var AI = (function () {
 
         thinking = {
             world: world, pos: pos, player: player,
+            purpose: purpose || 'play',
             started: Date.now(), answer: null, failed: null,
             search: null
         };
@@ -146,24 +147,30 @@ var AI = (function () {
     function poll() {
         if (!thinking) return null;
         if (thinking.failed) {
-            var failed = {failed: thinking.failed};
+            var failed = {purpose: thinking.purpose, failed: thinking.failed};
             thinking = null;
             return failed;
         }
         if (!thinking.answer) return null;
 
         var answer = thinking.answer;
+        answer.purpose = thinking.purpose;
         answer.seconds = (Date.now() - thinking.started) / 1000;
         thinking = null;
         return answer;
     }
 
-    function busy() {
-        return !!thinking;
+    /** Is it thinking - about `purpose`, if one is named? */
+    function busy(purpose) {
+        return !!thinking && (!purpose || thinking.purpose === purpose);
     }
 
-    function cancel() {
-        thinking = null;
+    /**
+     * Forget the turn being worked on. Naming a purpose forgets only that one,
+     * so a seat changing hands cannot throw away a hint somebody asked for.
+     */
+    function cancel(purpose) {
+        if (!purpose || (thinking && thinking.purpose === purpose)) thinking = null;
     }
 
     return {
