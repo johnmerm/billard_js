@@ -335,10 +335,20 @@ and it follows through.
 
 `phys.js` is the table around that:
 
-- **The pockets are holes in the bed.** There are no trigger zones. The cloth is
-  cut away at the six mouths, so a ball that gets far enough over one runs out of
-  cloth and falls, and you watch it drop. It counts as potted
-  when it passes below the bed.
+- **A pocket is an absence, not a trigger.** A ball whose centre is over a mouth
+  has nothing under it and nothing to hit — not the cloth, not the cushion
+  skirts — so it falls, keeping whatever speed and spin it arrived with, and you
+  watch it go down. It counts as potted when it passes below the bed. Until its
+  centre is over the hole it collides with everything as usual, so it can still
+  rattle off a jaw and stay up.
+
+  Cutting an actual hole in the bed was the obvious way to do that and it does
+  not work: a ball rests wherever any part of it can reach cloth, so a hole the
+  size of the mouth leaves a lip a ball wide that a ball sits on, more than half
+  over the pocket — which is the hovering it was meant to fix. Making the hole a
+  ball wider swallows balls that are still on the cloth. The mouths are drawn at
+  exactly the size the physics uses, so a ball that looks like it is over the
+  hole is a ball on its way down.
 - **Cushions are boxes** built from a list of segments that stop short of each
   pocket and are cut back at 45 degrees. The renderer builds the visible rubber
   from the same list, so what you see is what you hit, jaws included.

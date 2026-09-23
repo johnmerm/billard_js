@@ -35,6 +35,13 @@
 
     // A hard break moves a ball about 8 m/s; at 1/480 s that is 17 mm a step,
     // well under a ball radius, so nothing tunnels through the rack.
+    // The table's own collision groups. A ball on its way down a pocket is told
+    // to ignore both: the cloth, so that it falls at all, and the cushions,
+    // because they reach below the cloth to stop balls squeezing underneath and
+    // a ball dropping past a jaw would otherwise be squeezed back out by one.
+    var BED_GROUP = 2;
+    var CUSHION_GROUP = 4;
+    var DOWN_THE_HOLE = -1 & ~BED_GROUP & ~CUSHION_GROUP;
     var FIXED_STEP = 1 / 480;
     // 48 steps of 1/480 is exactly the 0.1s that `step` clamps a frame to, so
     // no frame short enough to be worth simulating ever loses time to the cap
@@ -217,6 +224,7 @@
 
         var self = this;
         world.addEventListener('preStep', function () {
+            self.mouths();
             self.cloth();
         });
         world.addEventListener('postStep', function () {
@@ -230,61 +238,23 @@
     Table.prototype.build = function () {
         var W = this.width, H = this.height, r = this.radius;
 
-        // The bed is the playing surface with the pockets cut out of it, so the
-        // only way off it is down a hole: a ball that gets far enough over one
-        // runs out of cloth and drops, the way it does on a real table.
+        // The bed is one slab under the whole playing surface, and the pockets
+        // are handled by `mouths` below rather than by cutting it.
         //
-        // It was one box across the whole table to begin with, on the reasoning
-        // that the rail line is where the cloth ends. It is not - the pockets
-        // are holes in the middle of that line, and a ball could sit dead centre
-        // over one, on top of cloth that should not have been there, hovering
-        // over the hole it was supposed to have fallen down.
+        // Cutting holes in it was the obvious idea and it does not work. A ball
+        // rests wherever any part of it can reach cloth, so with a hole the size
+        // of the mouth it only falls from the middle of that hole - the ring
+        // between is a lip it sits on, more than half over the pocket, exactly
+        // the hovering this was meant to fix. Making the hole a ball wider
+        // instead swallows balls that are still on the cloth.
         //
-        // Cannon has boxes and not much else, so the holes are square. The
-        // rounded shape a player sees is the drawn one; what this has to get
-        // right is where the support stops, and a square notch the size of the
-        // mouth does that well enough - a ball over the middle of a pocket falls,
-        // one on the cloth does not, and the jaws already shape the approach.
+        // What a real pocket does is simpler than either: there is nothing under
+        // a ball whose centre is over the hole, so it goes down. That is what
+        // `mouths` arranges, by taking the bed out of that ball's collisions.
         var bed = new CANNON.Body({mass: 0, material: clothMaterial});
-        var corner = 2.0 * r;        // how far a corner pocket eats into the bed
-        var side = 1.75 * r;         // and a middle one, along the rail and back
-
-        // Where the cloth is not, so a renderer can draw the hole that was
-        // actually cut rather than a rounder one that does not match it.
-        this.pocketCuts = [
-            {x1: 0, y1: 0, x2: corner, y2: corner},
-            {x1: W - corner, y1: 0, x2: W, y2: corner},
-            {x1: 0, y1: H - corner, x2: corner, y2: H},
-            {x1: W - corner, y1: H - corner, x2: W, y2: H},
-            {x1: W / 2 - side, y1: 0, x2: W / 2 + side, y2: side},
-            {x1: W / 2 - side, y1: H - side, x2: W / 2 + side, y2: H}
-        ];
-
-        /** One rectangle of cloth, in table coordinates. */
-        function cloth(x1, y1, x2, y2) {
-            if (x2 - x1 < 1e-6 || y2 - y1 < 1e-6) return;
-            bed.addShape(
-                new CANNON.Box(new CANNON.Vec3((x2 - x1) / 2, 0.02, (y2 - y1) / 2)),
-                new CANNON.Vec3((x1 + x2) / 2 - W / 2, -0.02, H / 2 - (y1 + y2) / 2)
-            );
-        }
-
-        // Three bands up the table, and the mirror of the first two at the far
-        // rail. Nearest the rail the corners and the middle pocket are all
-        // missing; a little further in only the corners are; past that the cloth
-        // runs the full width.
-        [0, 1].forEach(function (end) {
-            var flip = function (y) { return end ? H - y : y; };
-            var lo = Math.min(flip(0), flip(side)), hi = Math.max(flip(0), flip(side));
-            cloth(corner, lo, W / 2 - side, hi);
-            cloth(W / 2 + side, lo, W - corner, hi);
-
-            lo = Math.min(flip(side), flip(corner));
-            hi = Math.max(flip(side), flip(corner));
-            cloth(corner, lo, W - corner, hi);
-        });
-        cloth(0, corner, W, H - corner);
-
+        bed.addShape(new CANNON.Box(new CANNON.Vec3(W / 2, 0.02, H / 2)));
+        bed.position.set(0, -0.02, 0);
+        bed.collisionFilterGroup = BED_GROUP;
         bed.isCloth = true;
         this.cannon.addBody(bed);
         this.bed = bed;
@@ -367,6 +337,7 @@
         body.position.set(mx + nx * depth / 2, (height - skirt) / 2, mz + nz * depth / 2);
         // a box's local +x runs along the segment; +y rotation turns +x towards -z
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.atan2(-dz, dx));
+        body.collisionFilterGroup = CUSHION_GROUP;
         body.isCushion = true;
         this.cannon.addBody(body);
     };
@@ -390,6 +361,35 @@
      * kinetic friction slows the ball and spins it towards rolling; once it
      * rolls, only the much smaller rolling resistance is left.
      */
+    /**
+     * Take the cloth out from under any ball that is over a pocket.
+     *
+     * This is the whole of what a pocket is here. A ball whose centre is inside
+     * a mouth has nothing to rest on and nothing to hit, so it falls, keeping
+     * whatever speed and spin it arrived with - it is not teleported anywhere
+     * and you watch it go down. Until its centre is over the hole it collides
+     * with everything as usual, so it can still rattle off a jaw and stay up.
+     *
+     * Run every step, before the solver, so a ball that has rolled back out is
+     * given the cloth again on the way.
+     */
+    Table.prototype.mouths = function () {
+        for (var i = 0; i < this.balls.length; i++) {
+            var ball = this.balls[i];
+            if (!ball.active) continue;
+
+            var over = false;
+            for (var j = 0; j < this.pockets.length; j++) {
+                var p = this.pockets[j];
+                var dx = ball.x - p.x, dy = ball.y - p.y;
+                if (dx * dx + dy * dy < p.radius * p.radius) { over = true; break; }
+            }
+
+            ball.overPocket = over;
+            ball.body.collisionFilterMask = over ? DOWN_THE_HOLE : -1;
+        }
+    };
+
     Table.prototype.cloth = function () {
         var h = FIXED_STEP;
         var slide = this.slidingFriction * G;        // how hard the cloth bites
@@ -411,6 +411,7 @@
 
             var body = ball.body, r = ball.radius;
             if (body.position.y > r * 1.4) continue;      // airborne or dropping in
+            if (ball.overPocket) continue;                // no cloth under it at all
 
             var v = body.velocity, w = body.angularVelocity;
 

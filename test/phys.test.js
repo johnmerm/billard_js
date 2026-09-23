@@ -300,11 +300,17 @@ console.log('balls stay on the cloth');
 console.log('the cloth stops where the pocket starts');
 
 /*
- * The bed used to be one box across the whole table, on the reasoning that the
- * rail line is where the cloth ends. It is not: the pockets are holes in the
- * middle of that line, so a ball could come to rest dead centre over one, held
- * up by cloth that should not have been there, hovering over the hole it was
+ * A ball could come to rest over a pocket, hovering above the hole it was
  * supposed to have fallen down.
+ *
+ * Cutting the hole out of the bed was the obvious answer and it is not enough:
+ * a ball rests wherever any part of it can reach cloth, so a hole the size of
+ * the mouth leaves a lip a ball width wide that a ball sits on, more than half
+ * over the pocket. What settles it is that a ball whose centre is over a mouth
+ * has nothing under it and nothing to hit - not the cloth, and not the cushion
+ * skirts, which reach below the cloth and were squeezing falling balls back out
+ * sideways. So the whole mouth is swept here, rim included, and not just the
+ * middle of it.
  */
 (function () {
     var W = 2.24, H = 1.12;
@@ -319,12 +325,18 @@ console.log('the cloth stops where the pocket starts');
 
     var hovering = [];
     table().pockets.forEach(function (p) {
-        // the middle of the mouth, and a little way into it from each side
-        [[0, 0], [0.4, 0], [0, 0.4], [-0.4, 0], [0, -0.4]].forEach(function (off) {
-            var x = p.x + off[0] * p.radius, y = p.y + off[1] * p.radius;
-            if (x < 0 || x > W || y < 0 || y > H) return;      // off the table already
-            if (settlesAt(x, y)) hovering.push([x.toFixed(3), y.toFixed(3)].join());
-        });
+        // the whole mouth: out to the rim, all the way round
+        for (var a = 0; a < 24; a++) {
+            for (var f = 0; f <= 5; f++) {
+                var d = p.radius * (f / 5) * 0.98;
+                var x = p.x + Math.cos(a / 24 * 2 * Math.PI) * d;
+                var y = p.y + Math.sin(a / 24 * 2 * Math.PI) * d;
+                if (x < 0 || x > W || y < 0 || y > H) continue;   // off the table already
+                if (settlesAt(x, y)) {
+                    hovering.push('(' + (x * 100).toFixed(1) + ',' + (y * 100).toFixed(1) + ')');
+                }
+            }
+        }
     });
     check('a ball over a pocket mouth falls in rather than hovering',
         hovering.length === 0, hovering.join(' | '));
@@ -332,7 +344,7 @@ console.log('the cloth stops where the pocket starts');
     check('and one out on the cloth does not', settlesAt(W / 2, H / 2) &&
         settlesAt(0.4, 0.3) && settlesAt(W - 0.4, H - 0.3));
 
-    // the cloth is in pieces now, and a ball must not catch on the joins
+    // a ball out on the cloth has to keep its line, mouths or no mouths
     var w = table();
     var b = w.add(new Phys.Ball(0, 0.30, 0.25));
     w.strike(b, 1, 0, 1.8, 0, 0, 0);
@@ -341,6 +353,20 @@ console.log('the cloth stops where the pocket starts');
     check('a ball rolling clear of the pockets keeps its line',
         b.active && Math.abs(b.y - 0.25) < 0.002,
         'drifted ' + ((b.y - 0.25) * 1000).toFixed(1) + ' mm');
+
+    // and the jaws still have to be able to keep a ball out
+    var stayed = 0, cut = 0;
+    for (var v = 1.0; v <= 5.0; v += 0.25) {
+        var t2 = table();
+        var c = t2.add(new Phys.Ball(0, 0.6, 0.20));
+        t2.strike(c, 1, -0.30, v, 0, 0, 0);
+        var s2 = 0;
+        while (s2 < 4 && c.active) { t2.step(1 / 240); s2 += 1 / 240; }
+        cut++;
+        if (c.active) stayed++;
+    }
+    check('a ball that only clips a jaw stays on the table', stayed > cut * 0.5,
+        stayed + ' of ' + cut);
 })();
 
 console.log('pockets are holes, not trigger zones');

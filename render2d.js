@@ -143,13 +143,10 @@ function Renderer2D(canvas, world) {
             ctx.fill();
         });
 
-        // the rounded mouth a player recognises, and the square the cloth is
-        // actually cut to, so nothing falls through what looks like cloth
+        // drawn at exactly the size the physics uses, so a ball that looks like
+        // it is over the hole is a ball on its way down
         world.pockets.forEach(function (p) {
-            disc(sx(p.x, p.y), sy(p.x, p.y), p.radius * 1.05 * scale, '#07090b');
-        });
-        (world.pocketCuts || []).forEach(function (c) {
-            fillBox(c.x1, c.y1, c.x2, c.y2, '#07090b', 0);
+            disc(sx(p.x, p.y), sy(p.x, p.y), p.radius * scale, '#07090b');
         });
 
         // head string and foot spot, the markings you aim off
@@ -527,11 +524,7 @@ function Renderer2D(canvas, world) {
             [W + CUSHION_D, H + CUSHION_D, 0], [-CUSHION_D, H + CUSHION_D, 0]], CLOTH);
 
         world.pockets.forEach(function (p) {
-            fillPoly3(ring(p.x, p.y, p.radius * 1.05, 0.002, 20), '#07090b');
-        });
-        (world.pocketCuts || []).forEach(function (c) {
-            fillPoly3([[c.x1, c.y1, 0.002], [c.x2, c.y1, 0.002],
-                [c.x2, c.y2, 0.002], [c.x1, c.y2, 0.002]], '#07090b');
+            fillPoly3(ring(p.x, p.y, p.radius, 0.002, 20), '#07090b');
         });
 
         stroke3([[W * 0.25, 0, 0.003], [W * 0.25, H, 0.003]],
