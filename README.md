@@ -138,6 +138,7 @@ holding it back.
 | `render2d.js` | both views on a plain 2d canvas, for browsers that will not start WebGL |
 | `rules.js` | eight ball, and nothing else: it judges a shot, it does not act on one |
 | `brief.js` | the position written out, for a player that reads instead of looks |
+| `llm.js` | a seat played by a language model, over its provider's api |
 | `game.js` | input, the phase machine, sound and the HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |
@@ -186,6 +187,40 @@ on the screen; anything headless applies it to its own and racks up again.
 That split is what lets a match be played with no browser at all, which is what
 a self play trainer needs. It also means the rules can be tested directly, one
 call per case, rather than by driving a page.
+
+## Seats
+
+Each seat is played by one of four things, named in `state.seats`:
+
+| kind | who |
+|---|---|
+| `human` | somebody at the keyboard |
+| `net` | the value network in `train/player.js` |
+| `llm` | a language model, over its provider's api (`llm.js`) |
+| `driver` | something operating the page from outside |
+
+The chip on each player's panel cycles through them, so every matchup - human
+against a model, the network against a model, two models, the network against
+itself - is two clicks and needs no code. Two bitmasks used to do this between
+them and could not express a seat played by a third thing.
+
+Anything that is not a person has its shots slowed to 0.65x, for the same
+reason in every case: a shot nobody at the table chose goes by too fast to
+follow.
+
+### A language model in a seat
+
+Clicking a seat to `LLM` asks for an api key and a model, and opens a second
+window that shows the brief each player was sent and the sentence it gave back.
+The key is typed in at runtime, is never stored and never committed, and goes
+nowhere but the provider. It does go into the page, so **serve this from
+localhost or open it from a file when you use a real key** - anything that can
+put a script on the origin can read it, and a cdn is a bigger surface than your
+own disk.
+
+The model is given `brief.js`'s numbered menu rather than a table of
+coordinates, and answers with a pot number plus how hard to hit it. There is a
+spend cap per page load, because a game that plays itself is a loop that bills.
 
 ## Driving it from outside
 

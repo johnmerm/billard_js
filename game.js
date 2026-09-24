@@ -35,9 +35,12 @@
         lining: null,               // the network's shot, standing on the line
         aiPause: 0,                 // don't start thinking before this moment
         split: 0.62,                // how much of the screen the upper view gets
-        ai: 0,                      // seats the network plays: 1 is player 1, 2 is
-                                    // player 2, 3 is both, 0 is nobody
-        driven: 0                   // seats an outside driver plays, same bitmask
+        // Who is playing each seat. One of 'human', 'net' (the value network),
+        // 'llm' (a language model over its provider's api) or 'driver' (something
+        // operating the page from outside). Two bitmasks used to do this between
+        // them and could not express a seat being played by a third thing; one
+        // name per seat can, and every matchup falls out of it.
+        seats: ['human', 'human']
     };
 
     var shot = null;
@@ -129,7 +132,7 @@
         state.power = 0;
         state.side = state.vert = 0;
         state.angle = 0;
-        state.driven = 0;           // a fresh rack is nobody's until it is claimed
+        state.seats = ['human', 'human'];
         state.pocketed = [];
         state.message = 'Break them up: place the cue ball behind the line and fire.';
         state.ghost = null;
@@ -552,6 +555,25 @@
             '" style="--c:' + color + '">' + id + '</span>';
     }
 
+    var SEAT_LABEL = {human: 'AI', net: 'AI', llm: 'LLM', driver: 'EXT'};
+
+    /**
+     * What the seat chip says it will do. It cycles rather than toggling now
+     * that a seat can be played by three different things, so the tooltip has
+     * to name the next stop as well as the current one.
+     */
+    function seatTitle(p, kind) {
+        var who = 'Player ' + (p + 1);
+        if (kind === 'net') return who + ' is played by the network \u2014 click for a language model';
+        if (kind === 'llm') return who + ' is played by ' + llmName(p) + ' \u2014 click to take the seat back';
+        if (kind === 'driver') return who + ' is played from outside the page \u2014 click to take the seat back';
+        return 'Let the network play ' + who.toLowerCase();
+    }
+
+    function llmName(p) {
+        return (typeof LLM !== 'undefined' && LLM.name && LLM.name(p)) || 'a language model';
+    }
+
     function groupLabel(p) {
         if (state.groups[p]) return state.groups[p];
         return 'open';
@@ -567,13 +589,11 @@
         for (var p = 0; p < 2; p++) {
             var el = document.getElementById('group' + p);
             var group = state.groups[p];
-            var html = '<button type="button" class="seat' +
-                (aiPlays(p) ? ' on' : '') + (waiting['seat' + p] ? ' loading' : '') +
-                '" data-seat="' + p + '" title="' +
-                (aiPlays(p) ? 'Player ' + (p + 1) + ' is played by the network' +
-                    ' \u2014 click to take the seat back'
-                    : 'Let the network play player ' + (p + 1)) +
-                '">AI</button>' +
+            var kind = state.seats[p];
+            var html = '<button type="button" class="seat ' + kind +
+                (waiting['seat' + p] ? ' loading' : '') +
+                '" data-seat="' + p + '" title="' + seatTitle(p, kind) +
+                '">' + SEAT_LABEL[kind] + '</button>' +
                 '<b>Player ' + (p + 1) + '</b> <span class="grp">' + groupLabel(p) + '</span> ';
             var ids = group === 'solids' ? [1, 2, 3, 4, 5, 6, 7]
                 : group === 'stripes' ? [9, 10, 11, 12, 13, 14, 15] : [];
@@ -724,9 +744,19 @@
      * the shot is played on whichever frame the answer arrives. The table goes
      * on drawing throughout, which is the whole reason it is arranged this way.
      */
-    /** Is the network playing this seat? */
+    /** Is the value network playing this seat? */
     function aiPlays(player) {
-        return !!(state.ai & (1 << player));
+        return state.seats[player] === 'net';
+    }
+
+    /** Is anything other than a person playing it? */
+    function machinePlays(player) {
+        return state.seats[player] !== 'human';
+    }
+
+    /** Is a seat of this kind in the game at all? */
+    function anySeat(kind) {
+        return state.seats[0] === kind || state.seats[1] === kind;
     }
 
     /**
@@ -740,7 +770,7 @@
      * the same way and for the same reason.
      */
     function paceScale() {
-        return (aiPlays(state.player) || drivenBy(state.player)) ? AI_PACE : 1;
+        return machinePlays(state.player) ? AI_PACE : 1;
     }
 
     /** Wait a beat before the network starts on its next turn. */
@@ -758,7 +788,7 @@
      * stray click during the network's turn cannot take the shot for it.
      */
     function humanTurn() {
-        return !aiPlays(state.player);
+        return state.seats[state.player] === 'human';
     }
     /**
      * Hand a turn to the network when it is that player's.
@@ -773,6 +803,60 @@
         if (AI.busy() || state.lining || pausing()) return;
 
         AI.think(world, position(), 'play');
+    }
+
+    /**
+     * Hand a turn to a language model when it is that seat's.
+     *
+     * Same arrangement as the network's turn and for the same reason: starting
+     * one returns immediately and the answer is played on whichever frame it
+     * arrives, so the table never stops drawing while a model is thinking. The
+     * difference is that this one is waiting on a network request rather than
+     * on a search, so it can also simply fail, and a seat that cannot play is
+     * handed back rather than left stuck.
+     */
+    function pumpLLM() {
+        if (typeof LLM === 'undefined') return;
+        var p = state.player;
+        if (state.seats[p] !== 'llm') return;
+        if (state.phase !== 'aiming' && state.phase !== 'ballInHand') return;
+        if (LLM.busy(p) || state.lining || pausing()) return;
+
+        pause(60000);                  // nothing else starts a turn while this one runs
+        var forSeat = p;
+        LLM.think(p, briefFor(p + 1)).then(function (answer) {
+            state.aiPause = 0;
+            if (state.seats[forSeat] !== 'llm' || state.player !== forSeat) return;
+            if (!answer) {
+                setSeat(forSeat, 'human');
+                state.message = 'Player ' + (forSeat + 1) +
+                    ' could not play: the seat is yours.';
+                updateHud();
+                return;
+            }
+            playAnswer(forSeat, answer);
+        });
+    }
+
+    /** Turn what the model said into a shot on the table. */
+    function playAnswer(player, answer) {
+        var api = window.Billiards;
+
+        if (state.phase === 'ballInHand') {
+            var put = answer.action === 'place'
+                ? api.placeCue(answer.x, answer.y)
+                : 'not a placement';
+            // A spot that is off the table or on top of a ball is refused, and
+            // so is a shot answered where a placement was asked for. Either
+            // way the turn has to go somewhere, so it goes somewhere legal.
+            if (put.indexOf('placed') < 0) {
+                api.placeCue(state.kitchenOnly ? 40 : 112, 56);
+            }
+            return;
+        }
+
+        if (answer.action === 'pot') api.play(answer.pot, answer.power, answer.side, answer.vert);
+        else api.aim(answer.x, answer.y, answer.power, answer.side, answer.vert);
     }
 
     /** The position as the players and the network both see it. */
@@ -791,7 +875,7 @@
      */
     function pumpAI() {
         if (typeof AI === 'undefined' || !AI.ready()) return;
-        if (state.ai) playAI();
+        if (anySeat('net')) playAI();
         if (!AI.busy()) return;
 
         AI.tick(6);
@@ -799,7 +883,8 @@
         if (!answer) return;
 
         if (answer.failed) {
-            if (answer.purpose === 'play') state.ai = 0;   // rather than sit there stuck
+            // hand the seat back rather than sit there stuck
+            if (answer.purpose === 'play') setSeat(state.player, 'human');
             state.message = 'The AI stopped: ' + answer.failed.message;
             updateHud();
             return;
@@ -893,11 +978,13 @@
 
     /* ---------------------------- the seats --------------------------- */
 
-    /** Turn one seat over to the network, or take it back. */
-    function setSeat(player, on) {
-        var bit = 1 << player;
-        state.ai = on ? (state.ai | bit) : (state.ai & ~bit);
-        if (!aiPlays(state.player)) AI.cancel('play');
+    /** Hand one seat to something, or take it back. */
+    function setSeat(player, kind) {
+        if (state.seats[player] === 'llm' && kind !== 'llm' && typeof LLM !== 'undefined') {
+            LLM.release(player);
+        }
+        state.seats[player] = kind;
+        if (typeof AI !== 'undefined' && !aiPlays(state.player)) AI.cancel('play');
         updateHud();
     }
 
@@ -908,11 +995,33 @@
      * rather than appearing to have been ignored.
      */
     function askSeat(player) {
-        if (aiPlays(player)) { setSeat(player, false); return; }
+        var next = {human: 'net', net: 'llm', llm: 'human', driver: 'human'};
+        var want = next[state.seats[player]];
+
+        if (want === 'human') { setSeat(player, 'human'); return; }
+
+        if (want === 'llm') {
+            // Skip straight past a language model seat when nothing is set up
+            // to answer for it, rather than parking the seat somewhere it
+            // cannot play from.
+            if (typeof LLM === 'undefined' || !LLM.configure) {
+                setSeat(player, 'human');
+                return;
+            }
+            LLM.configure(player, function (ok) {
+                setSeat(player, ok ? 'llm' : 'human');
+                if (ok) {
+                    state.message = LLM.name(player) + ' is playing player ' +
+                        (player + 1) + '.';
+                    updateHud();
+                }
+            });
+            return;
+        }
 
         withModel(function () {
-            setSeat(player, true);
-            state.message = state.ai === 3
+            setSeat(player, 'net');
+            state.message = state.seats[0] === 'net' && state.seats[1] === 'net'
                 ? 'The network is playing itself.'
                 : 'The network is playing player ' + (player + 1) + '.';
             updateHud();
@@ -1012,7 +1121,7 @@
     var racking = 0;
 
     function keepPlaying() {
-        if (state.ai !== 3 || state.phase !== 'over') {
+        if (anySeat('human') || state.phase !== 'over') {
             racking = 0;
             return;
         }
@@ -1132,6 +1241,7 @@
         }
 
         pumpAI();
+        pumpLLM();
         pumpWatchers(now);
         keepPlaying();
 
@@ -1452,10 +1562,6 @@
         }
     }
 
-    function drivenBy(player) {
-        return !!(state.driven & (1 << player));
-    }
-
     /** True once the table has finished with whatever it was given. */
     function settled() {
         return state.phase !== 'rolling' && state.phase !== 'charging' && !state.lining;
@@ -1498,7 +1604,7 @@
      * what the table's units are.
      */
     function launch(angle, power, side, vert, chosen) {
-        state.driven |= (1 << state.player);
+        if (state.seats[state.player] === 'human') setSeat(state.player, 'driver');
         var before = state.pocketed.slice();
 
         takeShot({
@@ -1623,7 +1729,7 @@
                     'every other ball' +
                     (state.kitchenOnly ? ', and behind the head string.' : '.');
             }
-            state.driven |= (1 << state.player);
+            if (state.seats[state.player] === 'human') setSeat(state.player, 'driver');
             return 'Cue ball placed at ' + spot(cueBall) + '.';
         },
 
@@ -1635,7 +1741,7 @@
          * @return {Promise<string>} the brief, ready to act on
          */
         awaitTurn: function (seat) {
-            state.driven |= (1 << (seat - 1));
+            if (state.seats[seat - 1] === 'human') setSeat(seat - 1, 'driver');
             return waitFor(function () {
                 if (state.phase === 'over') return 'Game over. ' + state.message;
                 if (!settled() || state.player + 1 !== seat) return null;

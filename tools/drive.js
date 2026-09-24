@@ -193,7 +193,7 @@ var COMMANDS = {
         help: 'state                               one line, for a shell loop',
         build: function () {
             return ['(function () { var s = Billiards.state; return "phase=" + s.phase +' +
-                ' " player=" + (s.player + 1) + " ai=" + s.ai + " driven=" + s.driven; })()',
+                ' " player=" + (s.player + 1) + " seats=" + s.seats.join(","); })()',
                 SHOT_LIMIT];
         }
     }

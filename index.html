@@ -346,11 +346,26 @@
 
     .seat:hover { opacity: 1; }
 
-    .seat.on {
-        opacity: 1;
+    /* A seat that something other than a person is playing lights up, in a
+       colour per kind so a glance at the panel says who is at the table. */
+    .seat.net, .seat.llm, .seat.driver { opacity: 1; }
+
+    .seat.net {
         background: rgba(127, 208, 255, 0.2);
         border-color: rgba(127, 208, 255, 0.6);
         color: #dff1ff;
+    }
+
+    .seat.llm {
+        background: rgba(196, 150, 255, 0.22);
+        border-color: rgba(196, 150, 255, 0.65);
+        color: #efe2ff;
+    }
+
+    .seat.driver {
+        background: rgba(255, 199, 120, 0.2);
+        border-color: rgba(255, 199, 120, 0.6);
+        color: #ffeed4;
     }
 
     .seat.loading, #ai.loading {
@@ -612,21 +627,22 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=23"></script>
-    <script src="lib/three.js?v=23"></script>
-    <script src="lib/cannon-es.js?v=23"></script>
-    <script src="phys.js?v=23"></script>
-    <script src="rules.js?v=23"></script>
-    <script src="ball_skins.js?v=23"></script>
-    <script src="render.js?v=23"></script>
-    <script src="render2d.js?v=23"></script>
-    <script src="train/geometry.js?v=23"></script>
-    <script src="brief.js?v=23"></script>
-    <script src="train/match.js?v=23"></script>
-    <script src="train/bot.js?v=23"></script>
-    <script src="train/encode.js?v=23"></script>
-    <script src="train/player.js?v=23"></script>
-    <script src="ai.js?v=23"></script>
-    <script src="game.js?v=23"></script>
+    <script src="panels.js?v=24"></script>
+    <script src="lib/three.js?v=24"></script>
+    <script src="lib/cannon-es.js?v=24"></script>
+    <script src="phys.js?v=24"></script>
+    <script src="rules.js?v=24"></script>
+    <script src="ball_skins.js?v=24"></script>
+    <script src="render.js?v=24"></script>
+    <script src="render2d.js?v=24"></script>
+    <script src="train/geometry.js?v=24"></script>
+    <script src="brief.js?v=24"></script>
+    <script src="train/match.js?v=24"></script>
+    <script src="train/bot.js?v=24"></script>
+    <script src="train/encode.js?v=24"></script>
+    <script src="train/player.js?v=24"></script>
+    <script src="ai.js?v=24"></script>
+    <script src="llm.js?v=24"></script>
+    <script src="game.js?v=24"></script>
 </body>
 </html>
