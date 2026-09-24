@@ -277,10 +277,22 @@ at all is remembered — after that, a rejection can only mean refused.
     Grok refuses calls from a browser. Nothing on this page can change that —
     it would need a proxy to add the headers, and the key could live there instead.
 
-Claude is the one that was checked by hand as well, against the live endpoint.
-The other four could not be reached from the machine this was built on, whose
-network allows `api.anthropic.com` and nothing else — which is exactly why the
-page asks for itself rather than shipping a table of claims.
+All five answered when this was first run against real endpoints — 401, or a
+400 from the one that objected to the empty body before it objected to the key
+— so all five take browser calls. That was not knowable from the machine this
+was built on, whose network allows `api.anthropic.com` and nothing else, which
+is exactly why the page asks for itself rather than shipping a table of claims.
+
+### The model list
+
+The same applies to model ids, and worse: a list shipped in the page is a list
+that goes stale, and a guessed default is worse than an empty box. So once
+there is a key in the dialog, the provider is asked what it can run — all five
+serve it at `/v1/models` in the same shape — and the box fills itself.
+
+It stays free text. A list is a help, not a gate, and a model the list has not
+caught up with should still be typeable. A provider whose key cannot read the
+list says so and the box goes on working.
 
 ## Driving it from outside
 

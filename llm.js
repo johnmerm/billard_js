@@ -68,6 +68,9 @@ var LLM = (function () {
     function openaiShape(label, url) {
         return {
             label: label, url: url,
+            // Every one of these serves the list at the same place relative to
+            // the completions endpoint, and in the same shape as Anthropic's.
+            modelsUrl: url.replace(/\/chat\/completions$/, '/models'),
             model: '', priceIn: 0, priceOut: 0,
             headers: function (key) {
                 return {
@@ -114,6 +117,7 @@ var LLM = (function () {
             model: 'claude-opus-5',
             priceIn: 5.00, priceOut: 25.00,           // dollars per million tokens
             url: 'https://api.anthropic.com/v1/messages',
+            modelsUrl: 'https://api.anthropic.com/v1/models',
             headers: function (key) {
                 return {
                     'content-type': 'application/json',
@@ -396,8 +400,8 @@ var LLM = (function () {
             signal: stop.signal
         }).then(function (res) {
             networkSeen = true;
-            probed[id] = {ok: true, text: p.label + ' takes calls from a browser ' +
-                '(it answered ' + res.status + ' to a deliberately bad key).'};
+            probed[id] = {ok: true, text: p.label + ' takes calls from a browser: ' +
+                'the request got through and it answered ' + res.status + '.'};
         }).catch(function (err) {
             probed[id] = err.name === 'AbortError'
                 ? {ok: false, text: p.label + ' did not answer within 10s.'}
@@ -410,6 +414,49 @@ var LLM = (function () {
         }).then(function () {
             window.clearTimeout(timer);
             return probed[id];
+        });
+    }
+
+    /* ------------------------------------------------------------------ *
+     * asking a provider what it can run
+     *
+     * Shipping a list of model ids would be a list that goes stale, and
+     * guessing one is worse than leaving the box empty. With a key in hand the
+     * provider will simply say, and all five answer the same shape at the same
+     * place, so the box fills itself and stays free text for anything the list
+     * leaves out.
+     * ------------------------------------------------------------------ */
+
+    var models = {};                   // provider id -> ids it offered
+
+    function askModels(id, key) {
+        var p = PROVIDERS[id];
+        if (!p.modelsUrl) return Promise.resolve(null);
+
+        var stop = new AbortController();
+        var timer = window.setTimeout(function () { stop.abort(); }, 15000);
+
+        return window.fetch(p.modelsUrl, {
+            method: 'GET', headers: p.headers(key), signal: stop.signal
+        }).then(function (res) {
+            return res.json().then(function (data) {
+                if (!res.ok) {
+                    throw new Error((data.error && data.error.message) ||
+                        ('it answered ' + res.status));
+                }
+                return (data.data || []).map(function (m) { return m.id; })
+                    .filter(Boolean).sort();
+            });
+        }).then(function (list) {
+            models[id] = list;
+            return {ok: true, list: list};
+        }).catch(function (err) {
+            return {ok: false, text: err.name === 'AbortError'
+                ? 'The model list did not arrive within 15s.'
+                : 'Could not read the model list: ' + err.message};
+        }).then(function (out) {
+            window.clearTimeout(timer);
+            return out;
         });
     }
 
@@ -538,6 +585,51 @@ var LLM = (function () {
             : 'Needs https or localhost: a page opened from a file has no ' +
               'WebCrypto to encrypt with.';
 
+        /**
+         * Fill the model box from the provider, once there is a key to ask
+         * with. Left as free text: a list is a help, not a gate, and a model
+         * the list has not caught up with should still be typeable.
+         */
+        function fillModels() {
+            var id = choose.value;
+            var key = el('llmkey').value.trim();
+            var note = el('llmmodelnote');
+            var list = el('llmmodels');
+
+            function show(ids) {
+                list.innerHTML = ids.map(function (m) {
+                    return '<option value="' + m.replace(/"/g, '&quot;') + '">';
+                }).join('');
+                note.className = 'note';
+                note.textContent = ids.length
+                    ? ids.length + ' models offered by ' + PROVIDERS[id].label +
+                      ' \u2014 start typing to filter, or type any other id.'
+                    : PROVIDERS[id].label + ' returned no models.';
+            }
+
+            if (models[id]) { show(models[id]); return; }
+            if (key.length < 8) {
+                list.innerHTML = '';
+                note.className = 'note';
+                note.textContent = 'Put the key in and the list fills itself from ' +
+                    PROVIDERS[id].label + '.';
+                return;
+            }
+
+            note.className = 'note';
+            note.textContent = 'Asking ' + PROVIDERS[id].label + ' what it can run\u2026';
+            askModels(id, key).then(function (out) {
+                if (choose.value !== id) return;
+                if (!out) return;
+                if (out.ok) { show(out.list); return; }
+                note.className = 'note warn';
+                note.textContent = out.text;
+            });
+        }
+
+        el('llmkey').onchange = fillModels;
+        el('llmkey').onblur = fillModels;
+
         function refresh() {
             var p = PROVIDERS[choose.value];
             el('llmmodel').value = (was.provider === choose.value && was.model) || p.model;
@@ -556,8 +648,9 @@ var LLM = (function () {
                 note.className = 'note' + (said.ok ? '' : ' bad');
             });
         }
-        choose.onchange = refresh;
+        choose.onchange = function () { refresh(); fillModels(); };
         refresh();
+        fillModels();
 
         el('llmspend').textContent = spent > 0
             ? '$' + spent.toFixed(4) + ' spent so far' : '';
