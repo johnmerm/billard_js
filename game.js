@@ -1395,6 +1395,27 @@
         state: state,
         world: function () { return world; },
         newGame: newGame,
+        /**
+         * The position in words, for a driver that reads rather than looks.
+         * `seat` is 1 or 2 and optional: pass it and you are told plainly when
+         * it is not your turn, which is what an agent polling for its go needs
+         * to hear.
+         */
+        brief: function (seat) {
+            if (state.phase === 'over') return 'Game over. ' + state.message;
+            if (state.phase === 'rolling') return 'The balls are still rolling.';
+            if (seat !== undefined && seat !== state.player + 1) {
+                return 'Player ' + (state.player + 1) + ' to play, not you.';
+            }
+            return Brief.describe(world, {
+                player: state.player,
+                groups: state.groups,
+                open: state.open,
+                broken: state.broken,
+                ballInHand: state.phase === 'ballInHand',
+                kitchenOnly: state.kitchenOnly
+            });
+        },
         place: function (x, y) { return state.phase === 'ballInHand' && placeCueBall(x, y); },
         aimAt: function (x, y) { aimAt({x: x, y: y}); return state.angle; },
         shoot: function (power, side, vert, elevation) {

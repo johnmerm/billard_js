@@ -51,16 +51,22 @@ var Geometry = (function () {
     }
 
     /**
-     * Is the path from (x, y) to (tx, ty) clear of every ball but `ignore`?
+     * The ball in the way of the path from (x, y) to (tx, ty), if there is one.
      * A ball only has to pass within one diameter of another to clip it.
+     *
+     * Of several, the nearest to the start: that is the one that actually gets
+     * hit, and the one worth naming when explaining why a pot is not on.
+     *
+     * @return {?Object} the obstructing ball, or null if the path is clear
      */
-    function clear(world, x, y, tx, ty, ignore) {
+    function blocker(world, x, y, tx, ty, ignore) {
         var dx = tx - x, dy = ty - y;
         var len = Math.sqrt(dx * dx + dy * dy);
-        if (len < 1e-6) return true;
+        if (len < 1e-6) return null;
         dx /= len; dy /= len;
 
         var r2 = (2 * world.radius) * (2 * world.radius);
+        var hit = null, nearest = Infinity;
         for (var i = 0; i < world.balls.length; i++) {
             var b = world.balls[i];
             if (!b.active || ignore.indexOf(b) >= 0) continue;
@@ -68,9 +74,17 @@ var Geometry = (function () {
             var ox = b.x - x, oy = b.y - y;
             var proj = ox * dx + oy * dy;
             if (proj <= 0 || proj >= len) continue;      // behind, or past the end
-            if (ox * ox + oy * oy - proj * proj < r2) return false;
+            if (ox * ox + oy * oy - proj * proj < r2 && proj < nearest) {
+                nearest = proj;
+                hit = b;
+            }
         }
-        return true;
+        return hit;
+    }
+
+    /** Is the path from (x, y) to (tx, ty) clear of every ball but `ignore`? */
+    function clear(world, x, y, tx, ty, ignore) {
+        return blocker(world, x, y, tx, ty, ignore) === null;
     }
 
     /**
@@ -111,7 +125,7 @@ var Geometry = (function () {
         return out;
     }
 
-    return {ghost: ghost, clear: clear, candidates: candidates};
+    return {ghost: ghost, clear: clear, blocker: blocker, candidates: candidates};
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Geometry;

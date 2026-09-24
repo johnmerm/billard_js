@@ -137,6 +137,7 @@ holding it back.
 | `render.js` | the three.js scene and the two cameras |
 | `render2d.js` | both views on a plain 2d canvas, for browsers that will not start WebGL |
 | `rules.js` | eight ball, and nothing else: it judges a shot, it does not act on one |
+| `brief.js` | the position written out, for a player that reads instead of looks |
 | `game.js` | input, the phase machine, sound and the HUD |
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |
@@ -144,6 +145,7 @@ holding it back.
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
 | `test/rules.test.js` | eight ball rules tests: `node test/rules.test.js` |
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
+| `test/brief.test.js` | written table tests: `node test/brief.test.js` |
 | `train/geometry.js` | ghost ball aiming and the shortlist of pots worth playing |
 | `train/match.js` | a rack played with no browser: rack, shoot, settle, judge |
 | `train/bot.js` | the baseline player a learned one has to beat |
