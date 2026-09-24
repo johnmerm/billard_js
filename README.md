@@ -262,31 +262,25 @@ with its own spend limit, so a leak is a capped bill and a revocation.
 
 ### Which providers work from a browser
 
-Only one is verified. A provider has to send CORS headers or a page cannot call
-it at all, and the refusal reaches javascript as a bare `TypeError` with
-nothing in it — indistinguishable from being offline, deliberately, so a page
-cannot probe what it is not allowed to reach.
+A provider has to send CORS headers or a page cannot call it at all, and the
+refusal reaches javascript as a bare `TypeError` with nothing in it. So the
+dialog asks, the moment you pick a provider and before you have typed anything.
 
-| provider | browser calls |
-|---|---|
-| Claude | **checked** — preflight returns `allow-origin: *` |
-| OpenAI, Grok, Kimi, Qwen | untested: unreachable from where this was written |
+It needs no key. It sends the real request with one that is obviously not a
+key: a provider that allows browsers answers 401, which `fetch` resolves, and
+one that does not is refused before anything leaves the browser, which `fetch`
+rejects. An unauthenticated request costs nothing and bills nothing. The one
+ambiguity is that being offline rejects too, so the first provider that answers
+at all is remembered — after that, a rejection can only mean refused.
 
-The four untested ones were not reachable at all from the machine this was
-built on, whose network allows `api.anthropic.com` and nothing else, so every
-preflight came back a proxy denial rather than an answer. Their request shapes
-are right; whether they answer a browser is unknown. Find out in one command:
+    Claude takes calls from a browser (it answered 401 to a deliberately bad key).
+    Grok refuses calls from a browser. Nothing on this page can change that —
+    it would need a proxy to add the headers, and the key could live there instead.
 
-    curl -s -i -X OPTIONS https://api.openai.com/v1/chat/completions \
-      -H "Origin: http://localhost:8111" \
-      -H "Access-Control-Request-Method: POST" \
-      -H "Access-Control-Request-Headers: content-type,authorization" \
-      | grep -i "^HTTP\|^access-control"
-
-An `access-control-allow-origin` in the reply means it will work. Nothing means
-it will not, and that provider needs a small local proxy to add the headers —
-at which point the key can live in the proxy instead of the page, which is
-better anyway.
+Claude is the one that was checked by hand as well, against the live endpoint.
+The other four could not be reached from the machine this was built on, whose
+network allows `api.anthropic.com` and nothing else — which is exactly why the
+page asks for itself rather than shipping a table of claims.
 
 ## Driving it from outside
 

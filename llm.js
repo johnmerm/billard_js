@@ -65,9 +65,9 @@ var LLM = (function () {
      * an untested request to come back a 400. `parse` reads json out of prose,
      * which is the part that makes that safe.
      */
-    function openaiShape(label, url, cors, hint) {
+    function openaiShape(label, url) {
         return {
-            label: label, url: url, cors: cors, hint: hint,
+            label: label, url: url,
             model: '', priceIn: 0, priceOut: 0,
             headers: function (key) {
                 return {
@@ -111,8 +111,6 @@ var LLM = (function () {
             // The one provider whose browser support was checked rather than
             // assumed: a cors preflight against the live endpoint returns
             // allow-origin * and allows the four headers below.
-            cors: 'checked',
-            hint: 'Browser calls verified. The header below is what enables them.',
             model: 'claude-opus-5',
             priceIn: 5.00, priceOut: 25.00,           // dollars per million tokens
             url: 'https://api.anthropic.com/v1/messages',
@@ -168,15 +166,11 @@ var LLM = (function () {
         // browser make them at all is untested, and a page cannot find that
         // out politely - a refused preflight reaches javascript as nothing
         // more than "failed to fetch". `corsFailure` below says so in words.
-        openai: openaiShape('OpenAI', 'https://api.openai.com/v1/chat/completions',
-            'untested', 'Browser support untested from here. See the note below.'),
-        grok: openaiShape('Grok', 'https://api.x.ai/v1/chat/completions',
-            'untested', 'Browser support untested from here. See the note below.'),
-        kimi: openaiShape('Kimi', 'https://api.moonshot.ai/v1/chat/completions',
-            'untested', 'Browser support untested from here. See the note below.'),
+        openai: openaiShape('OpenAI', 'https://api.openai.com/v1/chat/completions'),
+        grok: openaiShape('Grok', 'https://api.x.ai/v1/chat/completions'),
+        kimi: openaiShape('Kimi', 'https://api.moonshot.ai/v1/chat/completions'),
         qwen: openaiShape('Qwen',
-            'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
-            'untested', 'Browser support untested from here. See the note below.')
+            'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions')
     };
 
     /* ------------------------------------------------------------------ *
@@ -371,6 +365,55 @@ var LLM = (function () {
     }
 
     /* ------------------------------------------------------------------ *
+     * asking a provider whether it takes browser calls
+     *
+     * A page cannot read a preflight result, but it does not need to. Send the
+     * real request with a key that is obviously not one: if the provider
+     * allows browsers, it arrives and comes back 401, which `fetch` resolves.
+     * If it does not, the browser refuses before anything is sent and `fetch`
+     * rejects. Either answer tells us what we wanted, and neither needs a real
+     * key or costs anything - an unauthenticated request is not billable.
+     *
+     * The one ambiguity is that being offline also rejects. So the first time
+     * any provider answers at all, that is remembered: after it, a rejection
+     * can only mean refused.
+     * ------------------------------------------------------------------ */
+
+    var probed = {};                   // provider id -> what it said
+    var networkSeen = false;
+
+    function probe(id) {
+        if (probed[id]) return Promise.resolve(probed[id]);
+
+        var p = PROVIDERS[id];
+        var stop = new AbortController();
+        var timer = window.setTimeout(function () { stop.abort(); }, 10000);
+
+        return window.fetch(p.url, {
+            method: 'POST',
+            headers: p.headers('not-a-key'),
+            body: '{}',
+            signal: stop.signal
+        }).then(function (res) {
+            networkSeen = true;
+            probed[id] = {ok: true, text: p.label + ' takes calls from a browser ' +
+                '(it answered ' + res.status + ' to a deliberately bad key).'};
+        }).catch(function (err) {
+            probed[id] = err.name === 'AbortError'
+                ? {ok: false, text: p.label + ' did not answer within 10s.'}
+                : {ok: false, text: networkSeen
+                    ? p.label + ' refuses calls from a browser. Nothing on this ' +
+                      'page can change that \u2014 it would need a proxy to add the ' +
+                      'headers, and the key could live there instead.'
+                    : p.label + ' could not be reached. Either it refuses browser ' +
+                      'calls or you are offline; the browser does not say which.'};
+        }).then(function () {
+            window.clearTimeout(timer);
+            return probed[id];
+        });
+    }
+
+    /* ------------------------------------------------------------------ *
      * the dialog
      * ------------------------------------------------------------------ */
 
@@ -502,8 +545,16 @@ var LLM = (function () {
             el('llmin').value = (was.provider === choose.value && was.priceIn) || p.priceIn || '';
             el('llmout').value = (was.provider === choose.value && was.priceOut) || p.priceOut || '';
             var note = el('llmcors');
-            note.textContent = p.hint;
-            note.className = 'note' + (p.cors === 'checked' ? '' : ' warn');
+            var id = choose.value;
+            note.textContent = probed[id] ? probed[id].text : 'Checking whether ' +
+                p.label + ' takes calls from a browser\u2026';
+            note.className = 'note' + (probed[id] && !probed[id].ok ? ' bad' : '');
+
+            probe(id).then(function (said) {
+                if (choose.value !== id) return;          // they moved on
+                note.textContent = said.text;
+                note.className = 'note' + (said.ok ? '' : ' bad');
+            });
         }
         choose.onchange = refresh;
         refresh();
@@ -676,17 +727,26 @@ var LLM = (function () {
             return 'Gave up waiting after ' + (TIMEOUT / 1000) + 's.';
         }
         if (err instanceof TypeError) {
-            return 'The request never reached ' + provider.label + '. Either you ' +
-                'are offline, or this provider does not accept calls from a ' +
-                'browser \u2014 which it refuses in a way a page cannot tell apart ' +
-                'from the first. ' +
-                (provider.cors === 'checked'
-                    ? 'Browser calls to this one are known to work, so check the network.'
-                    : 'Browser support for this one was never verified. Run the ' +
-                      'preflight in the README to find out, and put it behind a ' +
-                      'small local proxy if it says no.');
+            var said = probed[cfgProvider(provider)];
+            if (said && said.ok) {
+                return 'The request never reached ' + provider.label + ', though it ' +
+                    'took a browser call when the seat was set up. Most likely the ' +
+                    'network went away.';
+            }
+            return 'The request never reached ' + provider.label + '. ' +
+                (said ? said.text : 'Either it refuses calls from a browser or you ' +
+                 'are offline; the browser does not say which.');
         }
         return err.message;
+    }
+
+    /** Which entry of PROVIDERS this is, for looking up what the probe found. */
+    function cfgProvider(provider) {
+        var found = null;
+        Object.keys(PROVIDERS).forEach(function (id) {
+            if (PROVIDERS[id] === provider) found = id;
+        });
+        return found;
     }
 
     function busy(player) {
