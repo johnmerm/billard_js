@@ -75,15 +75,24 @@ var LLM = (function () {
                     'authorization': 'Bearer ' + key
                 };
             },
-            body: function (cfg, system, prompt) {
-                return {
+            /**
+             * `variant` exists for one reason: newer models on several of
+             * these apis rejected `max_tokens` and want `max_completion_tokens`
+             * instead, and which one a given model wants is not something a
+             * page can know in advance. So it sends one, and swaps on the 400
+             * that says so. See `paramProblem` below.
+             */
+            body: function (cfg, system, prompt, variant) {
+                var out = {
                     model: cfg.model,
-                    max_tokens: 4000,
                     messages: [
                         {role: 'system', content: system},
                         {role: 'user', content: prompt}
                     ]
                 };
+                if (variant) out.max_completion_tokens = 4000;
+                else out.max_tokens = 4000;
+                return out;
             },
             answer: function (data) {
                 var choice = (data.choices || [])[0];
@@ -560,6 +569,14 @@ var LLM = (function () {
      * a turn
      * ------------------------------------------------------------------ */
 
+    /**
+     * Is this the api telling us we named a parameter it does not take? Those
+     * are worth one retry with the other name; everything else is not.
+     */
+    function paramProblem(message) {
+        return /max_tokens|max_completion_tokens|[Uu]nsupported parameter/.test(message);
+    }
+
     function parse(text) {
         if (!text) return null;
         try { return JSON.parse(text); } catch (e) { /* not bare json */ }
@@ -592,19 +609,30 @@ var LLM = (function () {
         var stop = new AbortController();
         var timer = window.setTimeout(function () { stop.abort(); }, TIMEOUT);
 
-        return window.fetch(provider.url, {
-            method: 'POST',
-            headers: provider.headers(cfg.key),
-            body: JSON.stringify(provider.body(cfg, SYSTEM, brief)),
-            signal: stop.signal
-        }).then(function (res) {
-            return res.json().then(function (data) {
-                if (!res.ok) {
-                    throw new Error((data.error && data.error.message) ||
-                        ('the api answered ' + res.status));
-                }
-                return data;
+        function send(variant) {
+            return window.fetch(provider.url, {
+                method: 'POST',
+                headers: provider.headers(cfg.key),
+                body: JSON.stringify(provider.body(cfg, SYSTEM, brief, variant)),
+                signal: stop.signal
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    if (!res.ok) {
+                        var err = new Error((data.error && data.error.message) ||
+                            ('the api answered ' + res.status));
+                        err.status = res.status;
+                        throw err;
+                    }
+                    return data;
+                });
             });
+        }
+
+        return send(0).catch(function (err) {
+            if (err.status !== 400 || !paramProblem(err.message)) throw err;
+            say(player, 'meta', 'Retrying with max_completion_tokens: ' +
+                escape(err.message));
+            return send(1);
         }).then(function (data) {
             var u = provider.usage(data);
             spent += (u.inp * cfg.priceIn + u.out * cfg.priceOut) / 1e6;
