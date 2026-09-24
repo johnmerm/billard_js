@@ -80,12 +80,18 @@ Read those honestly rather than as a rule to follow:
 - **Scratching is the main way you lose a turn**, not missing. A straight pot
   sends the cue ball along the line the object ball just took — which points at
   the pocket the object ball went into.
-- **Spin is not the easy fix it looks like.** Both draw and follow made things
-  worse here, not better. That is measured, not folklore. If you use spin, have
-  a reason for it and watch what it actually does.
-- **Power is the untested lever.** Less power means less travel after contact,
-  which ought to mean fewer scratches — but that has not been measured, so treat
-  it as a hypothesis you are testing rather than a rule.
+- **Power is the lever that matters, and most shots want less of it than you
+  think.** Hitting at 0.30 rather than 0.55 pots more *and* misses less: the
+  shot only has to reach the pocket, not arrive hard. 0.80 is worse at
+  everything. Save real power for an object ball genuinely far from the pocket,
+  or for when you need the cue ball to travel afterwards.
+- **Draw depends entirely on the power under it.** At 0.55 it makes scratching
+  worse; at 0.30 it nearly halves it. Spin does not rescue a shot that is
+  already too hard — on a soft shot it holds the cue ball back off the pocket it
+  just fed. Never reach for spin to fix a power problem.
+- **Soft with a touch of draw is the best habit measured**, and it is a starting
+  point rather than a rule. It is blind to the position in front of you, which
+  is exactly the thing you can see and it cannot.
 
 The brief tells you where every ball is, so you can work out roughly where the
 cue ball is heading after a pot and whether a pocket is waiting there. That

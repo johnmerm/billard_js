@@ -237,13 +237,23 @@ up the one thing the arrangement is for but is useful on a server.
 
 ### What the pot list is and is not
 
-It is aiming geometry, and that is all. Taken literally - always pot `[1]`, always
-at 0.55 - it pots something legal 68% of the time and **scratches 12%** of the
-time, measured over 571 shots. Almost none of that is bad aim: the cue ball
-simply follows the object ball in, because nothing in the shortlist knows where
-it ends up. Reading the cue ball's finishing position back out of every shot is
-the cheapest way to start learning that; judging it in advance is what
-`train/player.js` and the value network are for.
+It is aiming geometry, and that is all. Taken literally - always pot `[1]` - what
+it is worth depends entirely on the power under it, measured over ~500 shots per
+row:
+
+| habit | pots | scratches | misses |
+|---|---|---|---|
+| power 0.80, no spin | 63% | 16% | 21% |
+| power 0.55, no spin | 66% | 12% | 22% |
+| power 0.55, draw -0.5 | 64% | 18% | 18% |
+| power 0.30, no spin | 71% | 12% | 17% |
+| power 0.30, draw -0.5 | 75% | 7% | 18% |
+
+Almost none of the losses are bad aim: the cue ball follows the object ball in,
+because nothing in the shortlist knows where it ends up. Note the reversal in
+the middle - draw makes scratching worse at 0.55 and nearly halves it at 0.30 -
+which is the sort of thing that is obvious only once measured. Judging the
+position a shot leaves is what `train/player.js` and the value network are for.
 
 ## Playing it without a browser
 
