@@ -219,8 +219,46 @@ put a script on the origin can read it, and a cdn is a bigger surface than your
 own disk.
 
 The model is given `brief.js`'s numbered menu rather than a table of
-coordinates, and answers with a pot number plus how hard to hit it. There is a
+coordinates, and answers with a pot number plus how hard to hit it. Prices are
+yours to type in, so the running total is right for whatever model you picked
+rather than for one a hard-coded table happened to know about, and there is a
 spend cap per page load, because a game that plays itself is a loop that bills.
+
+The key can be left unstored (the default), sealed under a passphrase, or kept
+in the open. The middle one is AES-GCM under PBKDF2 through WebCrypto: a
+storage dump, a backup or somebody else on the machine gets ciphertext. It is
+no defence at all against a script running on this origin while you play, and
+the dialog says so. WebCrypto needs a secure context, so that option is off on
+a page opened from a file — **`http://localhost` is the better place for a real
+key than `file://`**, which is the opposite of what you might expect.
+
+### Which providers work from a browser
+
+Only one is verified. A provider has to send CORS headers or a page cannot call
+it at all, and the refusal reaches javascript as a bare `TypeError` with
+nothing in it — indistinguishable from being offline, deliberately, so a page
+cannot probe what it is not allowed to reach.
+
+| provider | browser calls |
+|---|---|
+| Claude | **checked** — preflight returns `allow-origin: *` |
+| OpenAI, Grok, Kimi, Qwen | untested: unreachable from where this was written |
+
+The four untested ones were not reachable at all from the machine this was
+built on, whose network allows `api.anthropic.com` and nothing else, so every
+preflight came back a proxy denial rather than an answer. Their request shapes
+are right; whether they answer a browser is unknown. Find out in one command:
+
+    curl -s -i -X OPTIONS https://api.openai.com/v1/chat/completions \
+      -H "Origin: http://localhost:8111" \
+      -H "Access-Control-Request-Method: POST" \
+      -H "Access-Control-Request-Headers: content-type,authorization" \
+      | grep -i "^HTTP\|^access-control"
+
+An `access-control-allow-origin` in the reply means it will work. Nothing means
+it will not, and that provider needs a small local proxy to add the headers —
+at which point the key can live in the proxy instead of the page, which is
+better anyway.
 
 ## Driving it from outside
 

@@ -24,7 +24,7 @@ var LLM = (function () {
     'use strict';
 
     var TIMEOUT = 90000;         // a turn that has not answered by now never will
-    var SPEND_CAP = 2.00;        // dollars, per page load: a game that plays
+    var DEFAULT_CAP = 2.00;      // dollars, per page load: a game that plays
 
     /* ------------------------------------------------------------------ *
      * providers
@@ -55,9 +55,55 @@ var LLM = (function () {
         additionalProperties: false
     };
 
+    /**
+     * An openai-compatible chat/completions provider. Four of the five speak
+     * this shape, so they differ only in a url, a name and what they cost.
+     *
+     * Deliberately plain: no json mode, no response_format, nothing optional.
+     * None of these could be reached from where this was written - see `cors`
+     * below - and every field that is not strictly needed is one more way for
+     * an untested request to come back a 400. `parse` reads json out of prose,
+     * which is the part that makes that safe.
+     */
+    function openaiShape(label, url, cors, hint) {
+        return {
+            label: label, url: url, cors: cors, hint: hint,
+            model: '', priceIn: 0, priceOut: 0,
+            headers: function (key) {
+                return {
+                    'content-type': 'application/json',
+                    'authorization': 'Bearer ' + key
+                };
+            },
+            body: function (cfg, system, prompt) {
+                return {
+                    model: cfg.model,
+                    max_tokens: 4000,
+                    messages: [
+                        {role: 'system', content: system},
+                        {role: 'user', content: prompt}
+                    ]
+                };
+            },
+            answer: function (data) {
+                var choice = (data.choices || [])[0];
+                return choice && choice.message && choice.message.content;
+            },
+            usage: function (data) {
+                var u = data.usage || {};
+                return {inp: u.prompt_tokens || 0, out: u.completion_tokens || 0};
+            }
+        };
+    }
+
     var PROVIDERS = {
         claude: {
             label: 'Claude',
+            // The one provider whose browser support was checked rather than
+            // assumed: a cors preflight against the live endpoint returns
+            // allow-origin * and allows the four headers below.
+            cors: 'checked',
+            hint: 'Browser calls verified. The header below is what enables them.',
             model: 'claude-opus-5',
             priceIn: 5.00, priceOut: 25.00,           // dollars per million tokens
             url: 'https://api.anthropic.com/v1/messages',
@@ -104,7 +150,24 @@ var LLM = (function () {
                     out: u.output_tokens || 0
                 };
             }
-        }
+        },
+
+        // Not one of these could be reached from where this was written: the
+        // network there allows api.anthropic.com and nothing else, so every
+        // preflight came back a proxy denial rather than an answer from the
+        // provider. The request shapes are right; whether the provider lets a
+        // browser make them at all is untested, and a page cannot find that
+        // out politely - a refused preflight reaches javascript as nothing
+        // more than "failed to fetch". `corsFailure` below says so in words.
+        openai: openaiShape('OpenAI', 'https://api.openai.com/v1/chat/completions',
+            'untested', 'Browser support untested from here. See the note below.'),
+        grok: openaiShape('Grok', 'https://api.x.ai/v1/chat/completions',
+            'untested', 'Browser support untested from here. See the note below.'),
+        kimi: openaiShape('Kimi', 'https://api.moonshot.ai/v1/chat/completions',
+            'untested', 'Browser support untested from here. See the note below.'),
+        qwen: openaiShape('Qwen',
+            'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+            'untested', 'Browser support untested from here. See the note below.')
     };
 
     /* ------------------------------------------------------------------ *
@@ -140,6 +203,7 @@ var LLM = (function () {
     var spent = 0;                     // dollars this page load
     var inFlight = [false, false];
     var log = null;                    // the transcript window
+    var cap = DEFAULT_CAP;             // dollars, raised or lowered in the dialog
 
     function name(player) {
         var cfg = seats[player];
@@ -190,7 +254,7 @@ var LLM = (function () {
 
         var meter = log.document.getElementById('cost');
         if (meter) meter.textContent = 'spent so far: $' + spent.toFixed(4) +
-            ' of the $' + SPEND_CAP.toFixed(2) + ' cap';
+            ' of the $' + cap.toFixed(2) + ' cap';
     }
 
     function escape(s) {
@@ -201,50 +265,221 @@ var LLM = (function () {
      * setting a seat up
      * ------------------------------------------------------------------ */
 
+    /* ------------------------------------------------------------------ *
+     * keeping a key
+     *
+     * Nothing a page can decrypt by itself is protected, because the key to
+     * do it has to be in the page too. So there are three honest options and
+     * no fourth: do not keep it, keep it under a passphrase that never is,
+     * or keep it in the open and know that is what you did.
+     *
+     * The middle one is real against a real threat - a storage dump, a
+     * backup, somebody else on the machine - and useless against a script
+     * running here while you play. Both halves of that are worth saying.
+     * ------------------------------------------------------------------ */
+
+    var STORE = 'billiards.llm.key';
+
+    /** WebCrypto is only there in a secure context: https, or localhost. */
+    function canEncrypt() {
+        return !!(window.crypto && window.crypto.subtle && window.isSecureContext);
+    }
+
+    function bytes(s) { return new TextEncoder().encode(s); }
+
+    function b64(buf) {
+        var out = '', view = new Uint8Array(buf);
+        for (var i = 0; i < view.length; i++) out += String.fromCharCode(view[i]);
+        return window.btoa(out);
+    }
+
+    function unb64(s) {
+        var raw = window.atob(s), out = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
+    }
+
+    /** A key from a passphrase, stretched so guessing it is expensive. */
+    function derive(pass, salt) {
+        return window.crypto.subtle.importKey('raw', bytes(pass), 'PBKDF2', false,
+            ['deriveKey']).then(function (base) {
+            return window.crypto.subtle.deriveKey({
+                name: 'PBKDF2', salt: salt, iterations: 310000, hash: 'SHA-256'
+            }, base, {name: 'AES-GCM', length: 256}, false, ['encrypt', 'decrypt']);
+        });
+    }
+
+    function keep(apiKey, how, pass) {
+        if (how === 'none') {
+            try { window.localStorage.removeItem(STORE); } catch (e) { /* denied */ }
+            return Promise.resolve();
+        }
+        if (how === 'plain') {
+            try {
+                window.localStorage.setItem(STORE, JSON.stringify({plain: apiKey}));
+            } catch (e) { /* private window, or storage off */ }
+            return Promise.resolve();
+        }
+
+        var salt = window.crypto.getRandomValues(new Uint8Array(16));
+        var iv = window.crypto.getRandomValues(new Uint8Array(12));
+        return derive(pass, salt).then(function (k) {
+            return window.crypto.subtle.encrypt({name: 'AES-GCM', iv: iv}, k, bytes(apiKey));
+        }).then(function (sealed) {
+            try {
+                window.localStorage.setItem(STORE, JSON.stringify({
+                    salt: b64(salt), iv: b64(iv), sealed: b64(sealed)
+                }));
+            } catch (e) { /* as above */ }
+        });
+    }
+
+    function stored() {
+        try { return JSON.parse(window.localStorage.getItem(STORE) || 'null'); }
+        catch (e) { return null; }
+    }
+
+    /** Whatever is on disk, unsealed if it needs to be and can be. */
+    function recall() {
+        var held = stored();
+        if (!held) return Promise.resolve(null);
+        if (held.plain) return Promise.resolve(held.plain);
+        if (!canEncrypt()) return Promise.resolve(null);
+
+        var pass = window.prompt('Passphrase for the stored api key.\n\n' +
+            'Cancel to type the key in instead.');
+        if (!pass) return Promise.resolve(null);
+
+        return derive(pass, unb64(held.salt)).then(function (k) {
+            return window.crypto.subtle.decrypt(
+                {name: 'AES-GCM', iv: unb64(held.iv)}, k, unb64(held.sealed));
+        }).then(function (plain) {
+            return new TextDecoder().decode(plain);
+        }).catch(function () {
+            window.alert('That passphrase does not open the stored key.');
+            return null;
+        });
+    }
+
+    /* ------------------------------------------------------------------ *
+     * the dialog
+     * ------------------------------------------------------------------ */
+
+    var dialog = null;
+
+    function el(id) { return document.getElementById(id); }
+
     /**
-     * Ask for a key and a model. A prompt box rather than a modal for now: the
-     * modal, with the storage choice and the running cost in it, is its own
-     * piece of work, and nothing here needs to change when it arrives.
+     * Ask which model plays this seat, and what to do with the key.
+     *
+     * Opening it is a click, which matters for more than politeness: the
+     * transcript window is opened from here, and a popup asked for later - off
+     * the back of an api reply - is one the browser refuses.
      */
     function configure(player, done) {
-        var key = seats[player] && seats[player].key;
-        if (!key) {
-            // Reuse the other seat's key rather than asking twice for the same one.
-            var other = seats[1 - player];
-            key = other && other.key;
-        }
-        if (!key) {
-            key = window.prompt('Anthropic API key for player ' + (player + 1) +
-                '.\n\nIt stays in this tab, is never stored and never leaves here ' +
-                'except to api.anthropic.com. Serve this page from localhost or ' +
-                'open it from a file when you use a real key.');
-            if (!key) { done(false); return; }
-        }
+        var veil = el('llmveil');
+        if (!veil) { done(false); return; }             // page without the dialog
 
-        var model = window.prompt('Model for player ' + (player + 1) + ':',
-            (seats[player] && seats[player].model) || PROVIDERS.claude.model);
-        if (!model) { done(false); return; }
-        model = model.trim();
+        el('llmseat').textContent = String(player + 1);
 
-        // Two prompt boxes in a row is two chances to paste the wrong thing
-        // into the wrong one, and a key in the model field comes back as an
-        // api error about an unknown model, which says nothing useful.
-        if (/^sk-/.test(model)) {
-            window.alert('That looks like an api key rather than a model name.');
-            done(false);
-            return;
+        var choose = el('llmprovider');
+        if (!choose.options.length) {
+            Object.keys(PROVIDERS).forEach(function (id) {
+                var opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = PROVIDERS[id].label;
+                choose.appendChild(opt);
+            });
         }
 
-        seats[player] = {
-            provider: 'claude',
-            model: model,
-            key: key.trim(),
-            effort: 'medium',
-            priceIn: PROVIDERS.claude.priceIn,
-            priceOut: PROVIDERS.claude.priceOut
+        var was = seats[player] || seats[1 - player] || {};
+        choose.value = was.provider || 'claude';
+        el('llmcap').value = String(cap);
+        el('llmkey').value = was.key || '';
+
+        // A key in the page is a different proposition depending on where the
+        // page came from, so say which this is rather than leaving a warning
+        // that is either alarming or complacent.
+        var origin = el('llmorigin');
+        var local = window.location.protocol === 'file:' ||
+            /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+        origin.textContent = local
+            ? 'This page is local, which is the right place for a real key.'
+            : 'This page came from ' + window.location.host + ' \u2014 a real key is ' +
+              'safer on a page you serve yourself.';
+        origin.className = local ? '' : 'warn';
+
+        var crypt = el('llmcrypt');
+        crypt.disabled = !canEncrypt();
+        el('llmcryptnote').textContent = canEncrypt()
+            ? 'A passphrase you type once per session. Someone reading this ' +
+              'browser\u2019s storage gets ciphertext, not the key.'
+            : 'Needs https or localhost: a page opened from a file has no ' +
+              'WebCrypto to encrypt with.';
+
+        function refresh() {
+            var p = PROVIDERS[choose.value];
+            el('llmmodel').value = (was.provider === choose.value && was.model) || p.model;
+            el('llmmodel').placeholder = p.model || 'model id, from your provider';
+            el('llmin').value = (was.provider === choose.value && was.priceIn) || p.priceIn || '';
+            el('llmout').value = (was.provider === choose.value && was.priceOut) || p.priceOut || '';
+            var note = el('llmcors');
+            note.textContent = p.hint;
+            note.className = 'note' + (p.cors === 'checked' ? '' : ' warn');
+        }
+        choose.onchange = refresh;
+        refresh();
+
+        el('llmspend').textContent = spent > 0
+            ? '$' + spent.toFixed(4) + ' spent so far' : '';
+
+        function close() {
+            veil.classList.remove('open');
+            el('llmbox').onsubmit = null;
+            el('llmcancel').onclick = null;
+        }
+
+        el('llmcancel').onclick = function () { close(); done(false); };
+
+        el('llmbox').onsubmit = function (e) {
+            e.preventDefault();
+            var key = el('llmkey').value.trim();
+            var model = el('llmmodel').value.trim();
+            if (!key || !model) return;
+
+            var how = 'none';
+            var picked = document.querySelector('input[name="llmkeep"]:checked');
+            if (picked) how = picked.value;
+
+            var pass = null;
+            if (how === 'crypt') {
+                pass = window.prompt('A passphrase to seal the key with. ' +
+                    'You will be asked for it once per session.');
+                if (!pass) return;
+            }
+
+            cap = Number(el('llmcap').value) || cap;
+            seats[player] = {
+                provider: choose.value,
+                model: model,
+                key: key,
+                effort: 'medium',
+                priceIn: Number(el('llmin').value) || 0,
+                priceOut: Number(el('llmout').value) || 0
+            };
+
+            keep(key, how, pass).then(function () {
+                close();
+                openLog();
+                done(true);
+            });
         };
-        openLog();
-        done(true);
+
+        veil.classList.add('open');
+        recall().then(function (held) {
+            if (held && !el('llmkey').value) el('llmkey').value = held;
+        });
+        el('llmkey').focus();
     }
 
     function release(player) {
@@ -275,7 +510,7 @@ var LLM = (function () {
     function think(player, brief) {
         var cfg = seats[player];
         if (!cfg) return Promise.resolve(null);
-        if (spent >= SPEND_CAP) {
+        if (spent >= cap) {
             say(player, 'err', 'Stopped: $' + spent.toFixed(2) + ' spent, which is the cap.');
             return Promise.resolve(null);
         }
@@ -317,9 +552,7 @@ var LLM = (function () {
                 ' — ' + Math.round(u.inp) + ' in, ' + u.out + ' out]</span>');
             return answer;
         }).catch(function (err) {
-            say(player, 'err', escape(err.name === 'AbortError'
-                ? 'Gave up waiting after ' + (TIMEOUT / 1000) + 's.'
-                : err.message));
+            say(player, 'err', escape(explain(err, provider)));
             return null;
         }).then(function (answer) {
             window.clearTimeout(timer);
@@ -328,13 +561,41 @@ var LLM = (function () {
         });
     }
 
+    /**
+     * What went wrong, in words.
+     *
+     * A provider that refuses a browser refuses the preflight, and a refused
+     * preflight reaches javascript as a bare TypeError with nothing in it -
+     * no status, no reason, deliberately, so a page cannot probe what it is
+     * not allowed to reach. That is indistinguishable from the network being
+     * down, so the message has to offer both and say which is likelier.
+     */
+    function explain(err, provider) {
+        if (err.name === 'AbortError') {
+            return 'Gave up waiting after ' + (TIMEOUT / 1000) + 's.';
+        }
+        if (err instanceof TypeError) {
+            return 'The request never reached ' + provider.label + '. Either you ' +
+                'are offline, or this provider does not accept calls from a ' +
+                'browser \u2014 which it refuses in a way a page cannot tell apart ' +
+                'from the first. ' +
+                (provider.cors === 'checked'
+                    ? 'Browser calls to this one are known to work, so check the network.'
+                    : 'Browser support for this one was never verified. Run the ' +
+                      'preflight in the README to find out, and put it behind a ' +
+                      'small local proxy if it says no.');
+        }
+        return err.message;
+    }
+
     function busy(player) {
         return inFlight[player];
     }
 
     return {
         configure: configure, release: release, name: name, think: think,
-        busy: busy, cost: cost, openLog: openLog, cap: SPEND_CAP
+        busy: busy, cost: cost, openLog: openLog,
+        cap: function () { return cap; }
     };
 })();
 

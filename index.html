@@ -330,6 +330,54 @@
 
     /* Each player line carries its own seat button, so either side - or both -
        can be handed to the network. */
+
+    /* ---- the language model seat dialog ---------------------------------
+       A dialog rather than three prompt boxes in a row: it has to hold a key,
+       a model, what they cost and what to do with the key afterwards, and a
+       prompt box cannot say which of those it is asking for. */
+    #llmveil {
+        position: fixed; inset: 0; z-index: 60;
+        background: rgba(6, 9, 13, 0.72);
+        display: none; align-items: center; justify-content: center;
+        padding: 16px;
+    }
+    #llmveil.open { display: flex; }
+
+    #llmbox {
+        width: min(440px, 100%);
+        max-height: 92vh; overflow-y: auto;
+        background: #151a21; color: #dfe6ef;
+        border: 1px solid #2b3442; border-radius: 12px;
+        padding: 18px 18px 14px;
+        font-size: 13px; line-height: 1.5;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    }
+    #llmbox h3 { margin: 0 0 4px; font-size: 14px; }
+    #llmbox .sub { margin: 0 0 14px; color: #8b9cb2; font-size: 11.5px; }
+    #llmbox label { display: block; margin: 10px 0 3px; font-size: 11px;
+        letter-spacing: 0.06em; text-transform: uppercase; color: #9fb0c6; }
+    #llmbox input, #llmbox select {
+        width: 100%; box-sizing: border-box; padding: 6px 8px;
+        background: #0e1218; color: #dfe6ef;
+        border: 1px solid #2b3442; border-radius: 6px; font: inherit;
+    }
+    #llmbox .row { display: flex; gap: 10px; }
+    #llmbox .row > div { flex: 1; }
+    #llmbox .note { margin: 6px 0 0; color: #8b9cb2; font-size: 11px; }
+    #llmbox .warn { color: #ffcf9a; }
+    #llmbox .bad { color: #ff9d9d; }
+    #llmbox .keep { margin: 10px 0 0; }
+    #llmbox .keep label { display: flex; gap: 7px; align-items: flex-start;
+        text-transform: none; letter-spacing: 0; font-size: 12px; color: #dfe6ef;
+        margin: 5px 0; }
+    #llmbox .keep input { width: auto; margin-top: 2px; }
+    #llmbox .keep span { color: #8b9cb2; font-size: 11px; display: block; }
+    #llmfoot { display: flex; gap: 8px; justify-content: space-between;
+        align-items: center; margin-top: 16px; }
+    #llmspend { color: #9fb0c6; font-size: 11px; }
+    #llmbox button { padding: 6px 14px; border-radius: 6px; font: inherit; }
+    #llmgo { background: rgba(127, 208, 255, 0.2); border-color: rgba(127, 208, 255, 0.6); }
+
     .seat {
         /* Taken out of the flow and parked at the end of the line: as a float
            it pushed the last ball chip onto a second row. */
@@ -627,22 +675,80 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=24"></script>
-    <script src="lib/three.js?v=24"></script>
-    <script src="lib/cannon-es.js?v=24"></script>
-    <script src="phys.js?v=24"></script>
-    <script src="rules.js?v=24"></script>
-    <script src="ball_skins.js?v=24"></script>
-    <script src="render.js?v=24"></script>
-    <script src="render2d.js?v=24"></script>
-    <script src="train/geometry.js?v=24"></script>
-    <script src="brief.js?v=24"></script>
-    <script src="train/match.js?v=24"></script>
-    <script src="train/bot.js?v=24"></script>
-    <script src="train/encode.js?v=24"></script>
-    <script src="train/player.js?v=24"></script>
-    <script src="ai.js?v=24"></script>
-    <script src="llm.js?v=24"></script>
-    <script src="game.js?v=24"></script>
+    <script src="panels.js?v=25"></script>
+    <script src="lib/three.js?v=25"></script>
+    <script src="lib/cannon-es.js?v=25"></script>
+    <script src="phys.js?v=25"></script>
+    <script src="rules.js?v=25"></script>
+    <script src="ball_skins.js?v=25"></script>
+    <script src="render.js?v=25"></script>
+    <script src="render2d.js?v=25"></script>
+    <script src="train/geometry.js?v=25"></script>
+    <script src="brief.js?v=25"></script>
+    <script src="train/match.js?v=25"></script>
+    <script src="train/bot.js?v=25"></script>
+    <script src="train/encode.js?v=25"></script>
+    <script src="train/player.js?v=25"></script>
+    <script src="ai.js?v=25"></script>
+    <script src="llm.js?v=25"></script>
+    <script src="game.js?v=25"></script>
+
+<div id="llmveil" role="dialog" aria-modal="true" aria-labelledby="llmtitle">
+  <form id="llmbox" autocomplete="off">
+    <h3 id="llmtitle">A language model for player <span id="llmseat">1</span></h3>
+    <p class="sub">The key goes nowhere but the provider &mdash; but it does live in
+      this page while you play, so anything that can put a script on this origin can
+      read it. <b id="llmorigin"></b></p>
+
+    <label for="llmprovider">Provider</label>
+    <select id="llmprovider"></select>
+    <p class="note" id="llmcors"></p>
+
+    <label for="llmmodel">Model</label>
+    <input id="llmmodel" type="text" spellcheck="false">
+
+    <label for="llmkey">API key</label>
+    <input id="llmkey" type="password" spellcheck="false" autocomplete="off">
+
+    <div class="row">
+      <div>
+        <label for="llmin">$ / M input</label>
+        <input id="llmin" type="number" step="0.01" min="0">
+      </div>
+      <div>
+        <label for="llmout">$ / M output</label>
+        <input id="llmout" type="number" step="0.01" min="0">
+      </div>
+      <div>
+        <label for="llmcap">Spend cap $</label>
+        <input id="llmcap" type="number" step="0.5" min="0">
+      </div>
+    </div>
+    <p class="note">Prices are yours to set, so the running total is right for
+      whatever model you pick rather than for one a table happened to know about.</p>
+
+    <div class="keep">
+      <label><input type="radio" name="llmkeep" value="none" checked>
+        Do not store the key
+        <span>Type it again next time. Nothing is written to this browser.</span></label>
+      <label><input type="radio" name="llmkeep" value="crypt" id="llmcrypt">
+        Store it encrypted
+        <span id="llmcryptnote">A passphrase you type once per session. Someone
+          reading this browser's storage gets ciphertext, not the key.</span></label>
+      <label><input type="radio" name="llmkeep" value="plain">
+        Store it as it is
+        <span>Convenient. Readable by anything that can read this browser's
+          storage for this origin.</span></label>
+    </div>
+
+    <div id="llmfoot">
+      <span id="llmspend"></span>
+      <span>
+        <button type="button" id="llmcancel">Cancel</button>
+        <button type="submit" id="llmgo">Play</button>
+      </span>
+    </div>
+  </form>
+</div>
 </body>
 </html>
