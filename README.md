@@ -220,6 +220,23 @@ can watch the match happen. It talks the debugger protocol directly rather than
 through a browser automation library: a debugging socket is a few lines of node
 with nothing installed, and the repo stays as dependency free as the game.
 
+Nothing needs it, though. Those few lines inline are a whole turn, so an agent
+with a shell can reach the page without this or anything else installed:
+
+    node -e '
+    const t = await (await fetch("http://127.0.0.1:9222/json/list")).json();
+    const w = new WebSocket(t.find(x => x.url.includes("index.html")).webSocketDebuggerUrl);
+    w.onopen = () => w.send(JSON.stringify({id: 1, method: "Runtime.evaluate",
+        params: {expression: process.argv[1], awaitPromise: true, returnByValue: true}}));
+    w.onmessage = e => { console.log(JSON.parse(e.data).result.result.value); process.exit(0); };
+    ' 'Billiards.brief(1)'
+
+Going straight at the page is the better way round for an agent, which can
+compose - filter the brief, read `Billiards.state` - where a fixed set of
+subcommands cannot. What the tool is genuinely worth keeping for is `open`,
+which knows the two things a first run finds the hard way, and the exit code,
+which lets a shell loop stop by itself.
+
     node tools/drive.js open          # chrome, with the game on it
     node tools/drive.js wait 1        # blocks until it is your turn
     node tools/drive.js play 2 0.6    # the second pot, medium pace

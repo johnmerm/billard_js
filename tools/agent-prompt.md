@@ -7,35 +7,66 @@ so the interesting part is not only which shot you take but that you say why.
 ## Your seat
 
 Whoever started you said whether you are player 1 or player 2. Pass that number
-to every command. It is what stops you moving on your opponent's turn — without
-it the page cannot tell the two of you apart, and a stray command plays *their*
-shot for them.
+as the last argument of every call. It is what stops you moving on your
+opponent's turn — without it the page cannot tell the two of you apart, and a
+stray call plays *their* shot for them.
+
+## Reaching the game
+
+The game is a page in a Chrome that is already running with a debugging port
+open on `127.0.0.1:9222`. You talk to the page, not to a program that wraps it.
+
+**If you have a browser tool** — a Chrome extension, a devtools or playwright
+MCP server, anything that evaluates javascript in a tab — use it, and skip the
+rest of this section. Call `window.Billiards.*` directly. The one thing to know
+is that `play` and `aim` return promises that settle when the balls stop, so
+your tool has to await them; if it does not, fire the shot and then poll
+`Billiards.state.phase` until it is no longer `rolling`.
+
+**If all you have is a shell**, define this once and use it for everything:
+
+```bash
+cdp() { node -e '
+const t=await (await fetch("http://127.0.0.1:9222/json/list")).json();
+const w=new WebSocket(t.find(x=>x.url.includes("index.html")).webSocketDebuggerUrl);
+w.onopen=()=>w.send(JSON.stringify({id:1,method:"Runtime.evaluate",
+  params:{expression:process.argv[1],awaitPromise:true,returnByValue:true}}));
+w.onmessage=e=>{const r=JSON.parse(e.data).result;
+  console.log(r.exceptionDetails?r.exceptionDetails.exception.description:r.result.value);
+  process.exit(0)};' "$1"; }
+```
+
+Then `cdp 'Billiards.brief(1)'` prints the table. It needs nothing installed:
+node 22 has both `fetch` and `WebSocket` built in, and `awaitPromise` is what
+lets a whole shot be a single call.
+
+There is also `node tools/drive.js` in this repository, which wraps the same
+calls as subcommands. You do not need it, and going through the page directly
+is better: you can compose. `Billiards.brief()` is a string you can filter,
+`Billiards.state.groups` is readable, and you can work out something about the
+ball positions inside the page rather than in your head.
 
 ## The loop
 
-Your whole interface is `node tools/drive.js`, run from the repository root.
-
-1. `node tools/drive.js wait <seat>` — blocks until it is your turn, then prints
-   the table.
+1. `Billiards.awaitTurn(<seat>)` — resolves with the table when it is your go.
 2. Read it. Say in a sentence what you are going for and why.
-3. `node tools/drive.js play <n> <power> <side> <vert> <seat>` — takes pot `n`
-   from the list you were just shown. It returns when the balls have stopped and
-   tells you what happened.
+3. `Billiards.play(<n>, <power>, <side>, <vert>, <seat>)` — takes pot `n` from
+   the list you were just shown, and resolves when the balls have stopped with
+   what happened.
 4. Back to 1.
 
-Stop when a command tells you the game is over. The tool also exits with code 2
-at that point, so a `while` loop ends by itself.
+Stop when a reply tells you the game is over.
 
-## The commands
+## The calls
 
-| command | what it does |
+| call | what it does |
 |---|---|
-| `wait <seat>` | block until your turn, then print the position |
-| `brief <seat>` | print the position now, without waiting |
-| `play <n> <power> <side> <vert> <seat>` | take pot `n` from the brief's list |
-| `aim <x> <y> <power> <side> <vert> <seat>` | shoot at a point instead of a listed pot |
-| `place <x> <y> <seat>` | put the cue ball down while it is in hand |
-| `state` | one line: phase, whose turn it is |
+| `Billiards.awaitTurn(seat)` | block until your turn, then give the position |
+| `Billiards.brief(seat)` | the position now, without waiting |
+| `Billiards.play(n, power, side, vert, seat)` | take pot `n` from the brief's list |
+| `Billiards.aim(x, y, power, side, vert, seat)` | shoot at a point instead of a listed pot |
+| `Billiards.placeCue(x, y, seat)` | put the cue ball down while it is in hand |
+| `Billiards.state` | the raw game state, if you want to read it yourself |
 
 - `power` runs 0 to 1: 0 is the softest roll the cue can give, 1 is everything.
 - `side` is left/right english, `vert` is draw (negative) to follow (positive).
@@ -101,13 +132,14 @@ reasoning is the whole game and no tool does it for you.
 
 - **Do not edit any code.** You are playing, not developing. If something looks
   broken, say so and keep playing.
-- **Do not run `rack`.** It restarts the game under your opponent.
+- **Do not call `Billiards.newGame`.** It restarts the game under your
+  opponent, mid-rack, with no warning to either of you.
 - **Do not use git** or change anything in the repository.
-- **`wait` can block for minutes** while your opponent thinks. Give the command
-  a generous timeout. If it times out anyway, just run it again — asking again
-  retires the earlier wait rather than queueing another one.
-- **One shot per turn.** After `play` returns, go back to `wait`: the reply
-  already tells you whether the turn stayed with you, but `wait` is what keeps
-  the two of you from talking over each other.
+- **`awaitTurn` can block for minutes** while your opponent thinks. Give the
+  call a generous timeout. If it times out anyway, just make it again — asking
+  again retires the earlier wait rather than queueing another one.
+- **One shot per turn.** After `play` returns, go back to `awaitTurn`: the reply
+  already tells you whether the turn stayed with you, but `awaitTurn` is what
+  keeps the two of you from talking over each other.
 - **Narrate briefly.** A sentence before each shot and a reaction after it. The
   person watching is reading your terminal, not the code.
