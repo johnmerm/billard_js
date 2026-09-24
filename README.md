@@ -147,6 +147,7 @@ holding it back.
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
 | `test/brief.test.js` | written table tests: `node test/brief.test.js` |
 | `train/geometry.js` | ghost ball aiming and the shortlist of pots worth playing |
+| `tools/drive.js` | the game from a terminal: `node tools/drive.js open`, then `brief`, `play` |
 | `train/match.js` | a rack played with no browser: rack, shoot, settle, judge |
 | `train/bot.js` | the baseline player a learned one has to beat |
 | `train/selfplay.js` | play the bots against each other: `node train/selfplay.js --games 20` |
@@ -211,11 +212,38 @@ the shot was really steering. Both go through the same path the network's shots
 take, so a driven shot lines up and draws back on the screen at the same pace,
 which is the whole point of watching one.
 
-A rack driven this way reads like this:
+### From a terminal
 
-    P2 pots: Potted 11. Same player again. Cue ball finished at 12,4.
-    P2 safe: Wrong ball first: you are on stripes. Ball in hand for player 1.
-             Down this shot: 5. Cue ball is in hand. Player 1 to play.
+`tools/drive.js` turns each of those into one command, against a Chrome that is
+already running, so the window stays on screen between commands and a person
+can watch the match happen. It talks the debugger protocol directly rather than
+through a browser automation library: a debugging socket is a few lines of node
+with nothing installed, and the repo stays as dependency free as the game.
+
+    node tools/drive.js open          # chrome, with the game on it
+    node tools/drive.js wait 1        # blocks until it is your turn
+    node tools/drive.js play 2 0.6    # the second pot, medium pace
+
+`brief`, `wait`, `play`, `aim`, `place`, `rack` and `state` take the arguments
+their page equivalents take. The exit code is 2 once the game is over, so a
+shell loop ends by itself:
+
+    while BRIEF=$(node tools/drive.js wait 1); do
+        node tools/drive.js play 1 0.55 0 0 1 || break
+    done
+
+`open --headless` runs the whole thing on a machine with no screen, which gives
+up the one thing the arrangement is for but is useful on a server.
+
+### What the pot list is and is not
+
+It is aiming geometry, and that is all. Taken literally - always pot `[1]`, always
+at 0.55 - it pots something legal 68% of the time and **scratches 12%** of the
+time, measured over 571 shots. Almost none of that is bad aim: the cue ball
+simply follows the object ball in, because nothing in the shortlist knows where
+it ends up. Reading the cue ball's finishing position back out of every shot is
+the cheapest way to start learning that; judging it in advance is what
+`train/player.js` and the value network are for.
 
 ## Playing it without a browser
 
