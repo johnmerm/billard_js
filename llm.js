@@ -546,9 +546,13 @@ var LLM = (function () {
                 priceOut: Number(el('llmout').value) || 0
             };
 
+            // Opened here, inside the click, rather than after the storing
+            // finishes: a popup asked for from a promise callback has lost the
+            // gesture that entitled it, and sealing a key takes long enough
+            // (310k rounds of pbkdf2) to be exactly that case.
+            openLog();
             keep(key, how, pass).then(function () {
                 close();
-                openLog();
                 done(true);
             });
         };
