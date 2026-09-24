@@ -27,7 +27,9 @@ your tool has to await them; if it does not, fire the shot and then poll
 
 ```bash
 cdp() { node -e '
-const t=await (await fetch("http://127.0.0.1:9222/json/list")).json();
+const res=await fetch("http://127.0.0.1:9222/json/list").catch(()=>null);
+if(!res){console.log("No Chrome on 127.0.0.1:9222.");process.exit(1)}
+const t=await res.json();
 const w=new WebSocket(t.find(x=>x.url.includes("index.html")).webSocketDebuggerUrl);
 w.onopen=()=>w.send(JSON.stringify({id:1,method:"Runtime.evaluate",
   params:{expression:process.argv[1],awaitPromise:true,returnByValue:true}}));
