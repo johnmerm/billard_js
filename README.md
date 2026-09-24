@@ -199,10 +199,12 @@ Each seat is played by one of four things, named in `state.seats`:
 | `llm` | a language model, over its provider's api (`llm.js`) |
 | `driver` | something operating the page from outside |
 
-The chip on each player's panel cycles through them, so every matchup - human
-against a model, the network against a model, two models, the network against
-itself - is two clicks and needs no code. Two bitmasks used to do this between
-them and could not express a seat played by a third thing.
+The chip on each player's panel opens a menu of the three you can choose, so
+every matchup - human against a model, the network against a model, two models,
+the network against itself - is two clicks and needs no code. It cycled through
+them at first, which made you click past the one you did not want and past a
+model download on the way to it. Two bitmasks used to do this between them and
+could not express a seat played by a third thing.
 
 Anything that is not a person has its shots slowed to 0.65x, for the same
 reason in every case: a shot nobody at the table chose goes by too fast to

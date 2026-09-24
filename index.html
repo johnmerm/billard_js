@@ -378,6 +378,28 @@
     #llmbox button { padding: 6px 14px; border-radius: 6px; font: inherit; }
     #llmgo { background: rgba(127, 208, 255, 0.2); border-color: rgba(127, 208, 255, 0.6); }
 
+
+    /* A seat has three things that can play it, so the chip opens a choice
+       rather than cycling: cycling makes you click past the one you do not
+       want, and past a model download on the way. */
+    #seatmenu {
+        position: fixed; z-index: 70; display: none;
+        background: #151a21; border: 1px solid #2b3442; border-radius: 8px;
+        padding: 4px; min-width: 150px;
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+    }
+    #seatmenu.open { display: block; }
+    #seatmenu button {
+        display: block; width: 100%; text-align: left;
+        padding: 6px 9px; border: 0; background: none; border-radius: 5px;
+        color: #dfe6ef; font: inherit; font-size: 12px;
+    }
+    #seatmenu button:hover { background: rgba(127, 208, 255, 0.16); }
+    #seatmenu button.here { color: #7fd0ff; }
+    #seatmenu button.here::after { content: ' \2713'; }
+    #seatmenu b { display: block; font-size: 10px; letter-spacing: 0.08em;
+        text-transform: uppercase; color: #8b9cb2; padding: 5px 9px 3px; }
+
     .seat {
         /* Taken out of the flow and parked at the end of the line: as a float
            it pushed the last ball chip onto a second row. */
@@ -675,23 +697,25 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=29"></script>
-    <script src="lib/three.js?v=29"></script>
-    <script src="lib/cannon-es.js?v=29"></script>
-    <script src="phys.js?v=29"></script>
-    <script src="rules.js?v=29"></script>
-    <script src="ball_skins.js?v=29"></script>
-    <script src="render.js?v=29"></script>
-    <script src="render2d.js?v=29"></script>
-    <script src="train/geometry.js?v=29"></script>
-    <script src="brief.js?v=29"></script>
-    <script src="train/match.js?v=29"></script>
-    <script src="train/bot.js?v=29"></script>
-    <script src="train/encode.js?v=29"></script>
-    <script src="train/player.js?v=29"></script>
-    <script src="ai.js?v=29"></script>
-    <script src="llm.js?v=29"></script>
-    <script src="game.js?v=29"></script>
+    <script src="panels.js?v=31"></script>
+    <script src="lib/three.js?v=31"></script>
+    <script src="lib/cannon-es.js?v=31"></script>
+    <script src="phys.js?v=31"></script>
+    <script src="rules.js?v=31"></script>
+    <script src="ball_skins.js?v=31"></script>
+    <script src="render.js?v=31"></script>
+    <script src="render2d.js?v=31"></script>
+    <script src="train/geometry.js?v=31"></script>
+    <script src="brief.js?v=31"></script>
+    <script src="train/match.js?v=31"></script>
+    <script src="train/bot.js?v=31"></script>
+    <script src="train/encode.js?v=31"></script>
+    <script src="train/player.js?v=31"></script>
+    <script src="ai.js?v=31"></script>
+    <script src="llm.js?v=31"></script>
+    <script src="game.js?v=31"></script>
+
+<div id="seatmenu"></div>
 
 <div id="llmveil" role="dialog" aria-modal="true" aria-labelledby="llmtitle">
   <form id="llmbox" autocomplete="off">

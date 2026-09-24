@@ -555,7 +555,10 @@
             '" style="--c:' + color + '">' + id + '</span>';
     }
 
-    var SEAT_LABEL = {human: 'AI', net: 'AI', llm: 'LLM', driver: 'EXT'};
+    // What the chip says. Empty it reads as the question it asks rather than
+    // as one of the answers - labelling it AI sent people looking for a
+    // separate button for everything else.
+    var SEAT_LABEL = {human: 'SEAT', net: 'AI', llm: 'LLM', driver: 'EXT'};
 
     /**
      * What the seat chip says it will do. It cycles rather than toggling now
@@ -564,10 +567,10 @@
      */
     function seatTitle(p, kind) {
         var who = 'Player ' + (p + 1);
-        if (kind === 'net') return who + ' is played by the network \u2014 click for a language model';
-        if (kind === 'llm') return who + ' is played by ' + llmName(p) + ' \u2014 click to take the seat back';
-        if (kind === 'driver') return who + ' is played from outside the page \u2014 click to take the seat back';
-        return 'Let the network play ' + who.toLowerCase();
+        if (kind === 'net') return who + ' is played by the network \u2014 click to change';
+        if (kind === 'llm') return who + ' is played by ' + llmName(p) + ' \u2014 click to change';
+        if (kind === 'driver') return who + ' is played from outside the page \u2014 click to change';
+        return 'Choose who plays ' + who.toLowerCase() + ': a person, the network, or a language model';
     }
 
     function llmName(p) {
@@ -995,26 +998,65 @@
      * rather than appearing to have been ignored.
      */
     function askSeat(player) {
-        var next = {human: 'net', net: 'llm', llm: 'human', driver: 'human'};
-        var want = next[state.seats[player]];
+        var menu = document.getElementById('seatmenu');
+        if (!menu) { setSeat(player, 'human'); return; }
 
-        if (want === 'human') { setSeat(player, 'human'); return; }
+        var chip = document.querySelector('.seat[data-seat="' + player + '"]');
+        var at = chip.getBoundingClientRect();
+        var here = state.seats[player];
 
-        if (want === 'llm') {
-            // Skip straight past a language model seat when nothing is set up
-            // to answer for it, rather than parking the seat somewhere it
-            // cannot play from.
+        menu.innerHTML = '<b>Player ' + (player + 1) + ' is played by</b>' +
+            [['human', 'A person'],
+             ['net', 'The network'],
+             ['llm', 'A language model\u2026']].map(function (row) {
+                return '<button type="button" data-kind="' + row[0] + '"' +
+                    (here === row[0] ? ' class="here"' : '') + '>' + row[1] + '</button>';
+            }).join('');
+
+        menu.style.left = Math.max(6, Math.min(at.right - 150,
+            window.innerWidth - 158)) + 'px';
+        menu.style.top = (at.bottom + 4) + 'px';
+        menu.classList.add('open');
+
+        menu.onclick = function (e) {
+            var pick = e.target.closest && e.target.closest('button[data-kind]');
+            if (!pick) return;
+            closeSeatMenu();
+            takeSeat(player, pick.getAttribute('data-kind'));
+        };
+    }
+
+    function closeSeatMenu() {
+        var menu = document.getElementById('seatmenu');
+        if (menu) { menu.classList.remove('open'); menu.onclick = null; }
+    }
+
+    /**
+     * Give a seat to what was chosen.
+     *
+     * The network needs its model fetched first and a language model needs to
+     * be told which one and with what key, so both can decline - and a seat
+     * that cannot be filled stays as it was rather than falling back to the
+     * person, which would quietly undo a choice they had already made.
+     */
+    function takeSeat(player, kind) {
+        var was = state.seats[player];
+        if (kind === was) return;
+
+        if (kind === 'human') { setSeat(player, 'human'); return; }
+
+        if (kind === 'llm') {
             if (typeof LLM === 'undefined' || !LLM.configure) {
-                setSeat(player, 'human');
+                state.message = 'This page has no language model support in it.';
+                updateHud();
                 return;
             }
             LLM.configure(player, function (ok) {
-                setSeat(player, ok ? 'llm' : 'human');
-                if (ok) {
-                    state.message = LLM.name(player) + ' is playing player ' +
-                        (player + 1) + '.';
-                    updateHud();
-                }
+                if (!ok) return;                      // cancelled: leave the seat alone
+                setSeat(player, 'llm');
+                state.message = LLM.name(player) + ' is playing player ' +
+                    (player + 1) + '.';
+                updateHud();
             });
             return;
         }
@@ -1497,6 +1539,18 @@
         document.getElementById('sound').addEventListener('click', function () {
             this.innerHTML = Sound.toggle() ? '\u266a' : '\u266a\u0338';
             this.blur();
+        });
+
+        // a menu that only closes by choosing is a menu you are stuck in
+        document.addEventListener('pointerdown', function (e) {
+            var menu = document.getElementById('seatmenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            if (menu.contains(e.target) || (e.target.closest &&
+                e.target.closest('.seat'))) return;
+            closeSeatMenu();
+        }, true);
+        document.addEventListener('keydown', function (e) {
+            if (e.code === 'Escape') closeSeatMenu();
         });
 
         window.addEventListener('resize', drawSpinWidget);
