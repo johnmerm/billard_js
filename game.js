@@ -35,8 +35,9 @@
         lining: null,               // the network's shot, standing on the line
         aiPause: 0,                 // don't start thinking before this moment
         split: 0.62,                // how much of the screen the upper view gets
-        ai: 0                       // seats the network plays: 1 is player 1, 2 is
+        ai: 0,                      // seats the network plays: 1 is player 1, 2 is
                                     // player 2, 3 is both, 0 is nobody
+        driven: 0                   // seats an outside driver plays, same bitmask
     };
 
     var shot = null;
@@ -128,6 +129,7 @@
         state.power = 0;
         state.side = state.vert = 0;
         state.angle = 0;
+        state.driven = 0;           // a fresh rack is nobody's until it is claimed
         state.pocketed = [];
         state.message = 'Break them up: place the cue ball behind the line and fire.';
         state.ghost = null;
@@ -732,8 +734,13 @@
      * slowed: a person is watching their own cue ball and does not need help
      * following it.
      */
+    /**
+     * A shot nobody at the table chose goes by too fast to follow, so the
+     * network's shots roll slower than real time. A driver's shots are watched
+     * the same way and for the same reason.
+     */
     function paceScale() {
-        return aiPlays(state.player) ? AI_PACE : 1;
+        return (aiPlays(state.player) || drivenBy(state.player)) ? AI_PACE : 1;
     }
 
     /** Wait a beat before the network starts on its next turn. */
@@ -1125,6 +1132,7 @@
         }
 
         pumpAI();
+        pumpWatchers(now);
         keepPlaying();
 
         placeInset();
@@ -1389,32 +1397,250 @@
         window.requestAnimationFrame(frame);
     });
 
-    // Small control surface, handy from the console and used by the headless
-    // tests to play whole games without a mouse.
+    /* ------------------------------------------------------------------ *
+     * the driver surface
+     *
+     * For something operating the game from outside: an agent in a terminal,
+     * or a person at the console. It speaks the units the brief speaks -
+     * centimetres, and a power from 0 to 1 - and it answers in sentences,
+     * because what reads it next is as likely to be a language model as a
+     * program.
+     *
+     * Its shots go through takeShot, the same path the network's take, so a
+     * driven shot lines up and draws back where it can be watched. A shot
+     * nobody saw being chosen is not worth putting on a screen.
+     * ------------------------------------------------------------------ */
+
+    var SETTLE_LIMIT = 60000;        // a shot that has not finished by now never will
+
+    var watchers = [];
+
+    /**
+     * A promise for something the table has not done yet. `ready` is asked on
+     * every frame and answers null until it has something to say.
+     */
+    function waitFor(ready, limit, key) {
+        var deadline = limit ? performance.now() + limit : 0;
+        var answer = ready();
+        if (answer !== null && answer !== undefined) return Promise.resolve(answer);
+
+        // A driver that gave up on a wait and asked again would otherwise leave
+        // the first one here for good, polled on every frame and answered to
+        // nobody. Asking again replaces the question.
+        if (key) {
+            watchers = watchers.filter(function (w) {
+                if (w.key !== key) return true;
+                w.resolve('Superseded by a later wait on the same seat.');
+                return false;
+            });
+        }
+        return new Promise(function (resolve) {
+            watchers.push({ready: ready, resolve: resolve, deadline: deadline, key: key});
+        });
+    }
+
+    function pumpWatchers(now) {
+        for (var i = watchers.length - 1; i >= 0; i--) {
+            var w = watchers[i];
+            var answer = w.ready();
+            if (answer === null || answer === undefined) {
+                if (!w.deadline || now < w.deadline) continue;
+                answer = 'Timed out waiting for the table to settle.';
+            }
+            watchers.splice(i, 1);
+            w.resolve(answer);
+        }
+    }
+
+    function drivenBy(player) {
+        return !!(state.driven & (1 << player));
+    }
+
+    /** True once the table has finished with whatever it was given. */
+    function settled() {
+        return state.phase !== 'rolling' && state.phase !== 'charging' && !state.lining;
+    }
+
+    function spot(ball) {
+        return Math.round(ball.x * 100) + ',' + Math.round(ball.y * 100);
+    }
+
+    /**
+     * What the shot did, for whoever played it. The rulebook has already
+     * written the sentence that matters, so this adds only what it leaves out:
+     * which balls went down when the message does not name them, and where the
+     * cue ball came to rest, which is the thing the shot was really steering.
+     */
+    function outcome(before) {
+        if (state.phase === 'over') return 'Game over. ' + state.message;
+
+        var dropped = state.pocketed.filter(function (id) {
+            return before.indexOf(id) < 0;
+        });
+        var said = [state.message];
+
+        // The rulebook names the balls itself when they were the shooter's own.
+        // It does not when the shot fouled or dropped one of the opponent's,
+        // and those are the times it is worth knowing what went in.
+        if (dropped.length && !/^Potted \d/.test(state.message)) {
+            said.push('Down this shot: ' + dropped.join(', ') + '.');
+        }
+        said.push(state.phase === 'ballInHand'
+            ? 'Cue ball is in hand.'
+            : 'Cue ball finished at ' + spot(cueBall) + '.');
+        said.push('Player ' + (state.player + 1) + ' to play.');
+        return said.join(' ');
+    }
+
+    /**
+     * Line a shot up and hand back a promise for what it does. Power arrives
+     * as a fraction of what the cue can give, so a driver never has to know
+     * what the table's units are.
+     */
+    function launch(angle, power, side, vert, chosen) {
+        state.driven |= (1 << state.player);
+        var before = state.pocketed.slice();
+
+        takeShot({
+            angle: angle,
+            power: MIN_POWER + Phys.clamp(power, 0, 1) * (MAX_POWER - MIN_POWER),
+            side: Phys.clamp(side || 0, -1, 1),
+            vert: Phys.clamp(vert || 0, -1, 1),
+            elevation: 0
+        }, chosen);
+
+        return waitFor(function () {
+            return settled() ? outcome(before) : null;
+        }, SETTLE_LIMIT);
+    }
+
+    /**
+     * The reason this seat cannot shoot right now, or null if it can. `seat` is
+     * optional, and worth passing when two drivers share a table: it is what
+     * stops one of them moving on the other's turn.
+     */
+    function cannotShoot(seat) {
+        if (state.phase === 'over') return 'Game over. ' + state.message;
+        if (state.phase === 'rolling') return 'The balls are still rolling.';
+        if (state.lining) return 'A shot is already lined up.';
+        if (seat !== undefined && seat !== state.player + 1) {
+            return 'Player ' + (state.player + 1) + ' to play, not you.';
+        }
+        if (state.phase === 'ballInHand') {
+            return 'Cue ball in hand: place it with placeCue(x, y) before shooting.';
+        }
+        return null;
+    }
+
+    /** The pots on offer, in the order the brief just numbered them. */
+    function shortlist() {
+        return Geometry.candidates(world,
+            Rules.legalBalls(world, state.groups, state.player));
+    }
+
+    /**
+     * The position in words. `seat` is 1 or 2 and optional: pass it and you
+     * are told plainly when it is not your turn, which is what a driver
+     * polling for its go needs to hear.
+     */
+    function briefFor(seat) {
+        if (state.phase === 'over') return 'Game over. ' + state.message;
+        if (state.phase === 'rolling') return 'The balls are still rolling.';
+        if (seat !== undefined && seat !== state.player + 1) {
+            return 'Player ' + (state.player + 1) + ' to play, not you.';
+        }
+        return Brief.describe(world, {
+            player: state.player,
+            groups: state.groups,
+            open: state.open,
+            broken: state.broken,
+            ballInHand: state.phase === 'ballInHand',
+            kitchenOnly: state.kitchenOnly
+        });
+    }
+
     window.Billiards = {
         state: state,
         world: function () { return world; },
         newGame: newGame,
+        /** The position in words, for a driver that reads rather than looks. */
+        brief: briefFor,
+
         /**
-         * The position in words, for a driver that reads rather than looks.
-         * `seat` is 1 or 2 and optional: pass it and you are told plainly when
-         * it is not your turn, which is what an agent polling for its go needs
-         * to hear.
+         * Take one of the pots the brief numbered.
+         *
+         * @param {number} n      which pot, counting from 1 as the brief prints it
+         * @param {number} power  0 for the softest roll the cue can give, 1 for
+         *     everything it has
+         * @param {number} side   left or right english, -1 to 1
+         * @param {number} vert   draw to follow, -1 to 1
+         * @param {number=} seat  your seat, 1 or 2. Optional, and worth passing
+         *     when two drivers share a table: it refuses the shot rather than
+         *     playing it for your opponent.
+         * @return {Promise<string>} what the shot did, once the table is still
          */
-        brief: function (seat) {
-            if (state.phase === 'over') return 'Game over. ' + state.message;
-            if (state.phase === 'rolling') return 'The balls are still rolling.';
+        play: function (n, power, side, vert, seat) {
+            var no = cannotShoot(seat);
+            if (no) return Promise.resolve(no);
+
+            var on = shortlist();
+            var pick = on[n - 1];
+            if (!pick) {
+                return Promise.resolve(on.length
+                    ? 'There is no shot ' + n + ': the list runs 1 to ' + on.length + '.'
+                    : 'No pot is on, so there is nothing to pick. Play safe with ' +
+                      'aim(x, y, power) instead.');
+            }
+            return launch(pick.angle, power, side, vert, pick);
+        },
+
+        /**
+         * Shoot at a point on the cloth rather than at a numbered pot: the
+         * safety shots, the escapes, and anything the shortlist does not hold.
+         * Coordinates are in cm, as the brief gives them.
+         *
+         * @return {Promise<string>} what the shot did, once the table is still
+         */
+        aim: function (x, y, power, side, vert, seat) {
+            var no = cannotShoot(seat);
+            if (no) return Promise.resolve(no);
+            return launch(
+                Math.atan2(y / 100 - cueBall.y, x / 100 - cueBall.x),
+                power, side, vert, null);
+        },
+
+        /**
+         * Put the cue ball down, in cm. Only legal while it is in hand, which
+         * the brief says when it is.
+         */
+        placeCue: function (x, y, seat) {
             if (seat !== undefined && seat !== state.player + 1) {
                 return 'Player ' + (state.player + 1) + ' to play, not you.';
             }
-            return Brief.describe(world, {
-                player: state.player,
-                groups: state.groups,
-                open: state.open,
-                broken: state.broken,
-                ballInHand: state.phase === 'ballInHand',
-                kitchenOnly: state.kitchenOnly
-            });
+            if (state.phase !== 'ballInHand') return 'The cue ball is not in hand.';
+            if (!placeCueBall(x / 100, y / 100)) {
+                return 'Not a legal spot: it has to be clear of the rails and of ' +
+                    'every other ball' +
+                    (state.kitchenOnly ? ', and behind the head string.' : '.');
+            }
+            state.driven |= (1 << state.player);
+            return 'Cue ball placed at ' + spot(cueBall) + '.';
+        },
+
+        /**
+         * Wait until it is this seat's turn, and hand back the position when it
+         * is. Seats are 1 and 2. Resolves straight away if it is already your
+         * go, and resolves rather than hanging once the game is over.
+         *
+         * @return {Promise<string>} the brief, ready to act on
+         */
+        awaitTurn: function (seat) {
+            state.driven |= (1 << (seat - 1));
+            return waitFor(function () {
+                if (state.phase === 'over') return 'Game over. ' + state.message;
+                if (!settled() || state.player + 1 !== seat) return null;
+                return briefFor(seat);
+            }, 0, 'turn' + seat);
         },
         place: function (x, y) { return state.phase === 'ballInHand' && placeCueBall(x, y); },
         aimAt: function (x, y) { aimAt({x: x, y: y}); return state.angle; },

@@ -186,6 +186,37 @@ That split is what lets a match be played with no browser at all, which is what
 a self play trainer needs. It also means the rules can be tested directly, one
 call per case, rather than by driving a page.
 
+## Driving it from outside
+
+The page carries a small surface for something operating the game without a
+mouse: an agent in a terminal, or you at the console. It speaks centimetres,
+the way the brief does, and answers in sentences rather than in objects,
+because what reads it next is as likely to be a language model as a program.
+
+| call | does |
+|---|---|
+| `Billiards.brief(seat)` | the position in words, or who it is waiting on |
+| `Billiards.awaitTurn(seat)` | a promise for the brief, once it is your go |
+| `Billiards.play(n, power, side, vert, seat)` | take pot `n` from the brief's list |
+| `Billiards.aim(x, y, power, side, vert, seat)` | shoot at a point instead: safeties, escapes |
+| `Billiards.placeCue(x, y, seat)` | put the cue ball down while it is in hand |
+
+`power` runs 0 to 1, so a driver never has to know the table's units. `seat` is
+1 or 2 and optional, and worth passing when two drivers share a table: it is
+what stops one of them moving on the other's turn.
+
+`play` and `aim` return a promise that resolves when the balls stop, carrying
+what the rulebook made of the shot and where the cue ball finished — the thing
+the shot was really steering. Both go through the same path the network's shots
+take, so a driven shot lines up and draws back on the screen at the same pace,
+which is the whole point of watching one.
+
+A rack driven this way reads like this:
+
+    P2 pots: Potted 11. Same player again. Cue ball finished at 12,4.
+    P2 safe: Wrong ball first: you are on stripes. Ball in hand for player 1.
+             Down this shot: 5. Cue ball is in hand. Player 1 to play.
+
 ## Playing it without a browser
 
 `train/` holds a table that plays itself. `node train/selfplay.js --games 20`
