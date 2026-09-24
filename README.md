@@ -226,10 +226,19 @@ The key can be left unstored (the default), sealed under a passphrase, or kept
 in the open. The middle one is AES-GCM under PBKDF2 through WebCrypto: a
 storage dump, a backup or somebody else on the machine gets ciphertext. It is
 no defence against a script running on this origin while you play, and the
-dialog says so. What it is *not* for is other pages: `localStorage` is
-partitioned by origin already, so another site cannot read it whatever you do.
-The one case worth knowing is that origin means scheme, host **and port**, so
-another page served off the same port is not "another site".
+dialog says so.
+
+It matters most on a host like githack, and for a reason that catches people
+out: an origin is a scheme, a host and a port, and **the path is not in it**.
+Every `raw.githack.com` url is the same origin as every other one, so a page in
+a stranger's repo, served through githack, shares this page's `localStorage`
+and can read anything left there by name — and the name is in this repo, which
+is public. So on those hosts the dialog does not offer to store a key in the
+open at all, and the passphrase stops being a nicety.
+
+The same fact has a second edge: same origin means such a page can also put
+this one in an iframe and reach straight into it. The dialog refuses to take a
+key when it finds itself framed, and says why.
 
 WebCrypto needs a secure context, which https and localhost are and a `file://`
 page is not — so the passphrase option switches itself off when you open the

@@ -377,6 +377,24 @@ var LLM = (function () {
      * cannot change under you, which is the whole of the difference and costs
      * nothing but a longer link.
      */
+    /**
+     * Hosts that serve pages for everybody out of one origin.
+     *
+     * This is the part that catches people out: an origin is a scheme, a host
+     * and a port, and the path is not in it. Every githack url is the same
+     * origin as every other githack url, so a page in a stranger's repo shares
+     * this one's localStorage and can read anything left in it by name - and
+     * the name is in this repo, which is public.
+     */
+    var SHARED_HOSTS = [
+        'raw.githack.com', 'rawcdn.githack.com', 'raw.githubusercontent.com',
+        'cdn.jsdelivr.net', 'cdn.statically.io', 'gitcdn.link', 'htmlpreview.github.io'
+    ];
+
+    function sharedOrigin() {
+        return SHARED_HOSTS.indexOf(window.location.hostname) >= 0;
+    }
+
     function provenance() {
         if (window.location.protocol === 'file:') {
             return {warn: false, text: 'Opened from a file, which nobody else can ' +
@@ -397,6 +415,17 @@ var LLM = (function () {
             'whatever was last pushed there \u2014 with your key in it. Pin the url ' +
             'to a commit id instead of a branch name to freeze it, and use a key ' +
             'with its own spend limit that you can revoke.'};
+    }
+
+    /** The storage warning, which on a shared origin is a different warning. */
+    function storageNote() {
+        if (!sharedOrigin()) {
+            return 'Convenient. Readable by anything that can read this ' +
+                'browser\u2019s storage for this origin.';
+        }
+        return window.location.hostname + ' serves everybody from one origin, so ' +
+            'a page in a stranger\u2019s repo shares this storage and can read a ' +
+            'plain key by name. Not offered here.';
     }
 
     /**
@@ -430,6 +459,24 @@ var LLM = (function () {
         var origin = el('llmorigin');
         origin.textContent = provenance().text;
         origin.className = provenance().warn ? 'warn' : '';
+
+        // Same origin also means a page on this host can put this one in an
+        // iframe and reach straight into it, so a key typed into a framed copy
+        // is a key typed into whatever framed it.
+        if (window.top !== window.self) {
+            window.alert('This page is inside a frame. Open it in a window of its ' +
+                'own before typing a key: on a shared origin, whatever framed it ' +
+                'can read everything in here.');
+            done(false);
+            return;
+        }
+
+        var plain = document.querySelector('input[name="llmkeep"][value="plain"]');
+        plain.disabled = sharedOrigin();
+        plain.parentNode.querySelector('span').textContent = storageNote();
+        if (plain.checked && plain.disabled) {
+            document.querySelector('input[name="llmkeep"][value="none"]').checked = true;
+        }
 
         var crypt = el('llmcrypt');
         crypt.disabled = !canEncrypt();
