@@ -212,11 +212,9 @@ follow.
 
 Clicking a seat to `LLM` asks for an api key and a model, and opens a second
 window that shows the brief each player was sent and the sentence it gave back.
-The key is typed in at runtime, is never stored and never committed, and goes
-nowhere but the provider. It does go into the page, so **serve this from
-localhost or open it from a file when you use a real key** - anything that can
-put a script on the origin can read it, and a cdn is a bigger surface than your
-own disk.
+The key is typed in at runtime, goes nowhere but the provider, and is never
+committed. It does live in the page while you play, so what matters is who can
+change the page: see **Where the page itself comes from** below.
 
 The model is given `brief.js`'s numbered menu rather than a table of
 coordinates, and answers with a pot number plus how hard to hit it. Prices are
@@ -227,10 +225,29 @@ spend cap per page load, because a game that plays itself is a loop that bills.
 The key can be left unstored (the default), sealed under a passphrase, or kept
 in the open. The middle one is AES-GCM under PBKDF2 through WebCrypto: a
 storage dump, a backup or somebody else on the machine gets ciphertext. It is
-no defence at all against a script running on this origin while you play, and
-the dialog says so. WebCrypto needs a secure context, so that option is off on
-a page opened from a file — **`http://localhost` is the better place for a real
-key than `file://`**, which is the opposite of what you might expect.
+no defence against a script running on this origin while you play, and the
+dialog says so. What it is *not* for is other pages: `localStorage` is
+partitioned by origin already, so another site cannot read it whatever you do.
+The one case worth knowing is that origin means scheme, host **and port**, so
+another page served off the same port is not "another site".
+
+WebCrypto needs a secure context, which https and localhost are and a `file://`
+page is not — so the passphrase option switches itself off when you open the
+page from disk, and works fine over githack.
+
+### Where the page itself comes from
+
+A key typed into a page is only as safe as whoever can change that page. Served
+off a branch, the page is whatever was last pushed there, and it arrives with
+your key already in it. The same url pinned to a commit cannot change under
+you:
+
+    https://raw.githack.com/<user>/<repo>/<commit-sha>/index.html
+
+The dialog works out which it is from the url and says so, rather than leaving
+a warning that is either alarming or complacent. Pinning costs nothing but a
+longer link, and pairs with the obvious other half: give this a key of its own
+with its own spend limit, so a leak is a capped bill and a revocation.
 
 ### Which providers work from a browser
 

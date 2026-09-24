@@ -365,9 +365,39 @@ var LLM = (function () {
      * the dialog
      * ------------------------------------------------------------------ */
 
-    var dialog = null;
-
     function el(id) { return document.getElementById(id); }
+
+    /**
+     * Where this page came from, and what that means for a key typed into it.
+     *
+     * The question is never "is this host trustworthy" but "who can change
+     * what runs here". A page served off a branch is whatever was last pushed
+     * to that branch, so the answer is everyone who can push - and the page
+     * arrives with your key already in it. The same url pinned to a commit
+     * cannot change under you, which is the whole of the difference and costs
+     * nothing but a longer link.
+     */
+    function provenance() {
+        if (window.location.protocol === 'file:') {
+            return {warn: false, text: 'Opened from a file, which nobody else can ' +
+                'change. Storing the key encrypted needs https or localhost, so ' +
+                'that option is off here.'};
+        }
+        if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)) {
+            return {warn: false, text: 'Served from your own machine, which is the ' +
+                'safest place for a real key.'};
+        }
+        // Any path segment that is a git object id: the page is frozen.
+        if (/\/[0-9a-f]{7,40}\//.test(window.location.pathname)) {
+            return {warn: false, text: 'Pinned to a commit, so a later push cannot ' +
+                'change this page under you. Your key stays between this page and ' +
+                'the provider.'};
+        }
+        return {warn: true, text: 'This page is served from a branch, so it runs ' +
+            'whatever was last pushed there \u2014 with your key in it. Pin the url ' +
+            'to a commit id instead of a branch name to freeze it, and use a key ' +
+            'with its own spend limit that you can revoke.'};
+    }
 
     /**
      * Ask which model plays this seat, and what to do with the key.
@@ -397,17 +427,9 @@ var LLM = (function () {
         el('llmcap').value = String(cap);
         el('llmkey').value = was.key || '';
 
-        // A key in the page is a different proposition depending on where the
-        // page came from, so say which this is rather than leaving a warning
-        // that is either alarming or complacent.
         var origin = el('llmorigin');
-        var local = window.location.protocol === 'file:' ||
-            /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
-        origin.textContent = local
-            ? 'This page is local, which is the right place for a real key.'
-            : 'This page came from ' + window.location.host + ' \u2014 a real key is ' +
-              'safer on a page you serve yourself.';
-        origin.className = local ? '' : 'warn';
+        origin.textContent = provenance().text;
+        origin.className = provenance().warn ? 'warn' : '';
 
         var crypt = el('llmcrypt');
         crypt.disabled = !canEncrypt();
