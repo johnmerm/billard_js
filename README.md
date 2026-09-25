@@ -561,9 +561,30 @@ rule alters anything at all is small. Five to eight times the data, two or
 three hours of collecting, is the honest price of finding out whether the
 refinement exists.
 
-Before paying it, the cheaper question is whether there is anything to
-recover: measure the standard-rules model's endgame under the house rule
-first. If it already handles those positions, there is nothing to learn.
+That cheaper question was asked instead, and it closed the matter. How often
+each player finishes cleanly on the 8, rather than losing by putting it down
+illegally — 24 racks each, the shipped model against itself and the baseline
+bot against itself:
+
+| | shipped model | baseline bot |
+|---|---|---|
+| standard rules | 21/24 (88%) | 17/24 (71%) |
+| `blackbank` | **23/24 (96%)** | 15/24 (63%) |
+| `blackkick` | **23/24 (96%)** | 16/24 (67%) |
+
+And head to head under `blackbank`, the shipped model beats the baseline
+**30-0** over thirty racks.
+
+The model finishes *more* cleanly under a house rule than without one. The
+likely reason is that the rule takes the straight pot away and leaves only
+banks, which are softer shots that scratch less — the rule accidentally makes
+the endgame safer for a player good enough to bank. Whatever the cause, there
+is no weakness for retraining to recover, and the long collection was not run.
+
+The order to do this in, learned the expensive way: measure whether the gap
+exists before collecting data to close it. Twenty minutes of collecting and
+twenty of training bought a null result that ten minutes of measuring would
+have predicted.
 
 ### Playing against it
 
