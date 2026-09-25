@@ -175,6 +175,29 @@ library.
 `lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`, `draw.js` and
 `ball_textures.js` belong to the old `demo.html` prototype and are untouched.
 
+## Saving a game
+
+`G` writes the game out as a file, and dropping one back on the table replays
+it. `Billiards.saveGame()` and `Billiards.replay(log)` do the same from the
+console.
+
+The file holds the rack order, the house rules in force, and every placement
+and shot — and, for each shot, where the balls actually finished. That last
+part is there because live play is driven by the clock: a busy frame throws
+simulated time away, so the same shot takes a different number of steps and
+finishes somewhere slightly else. Re-simulating a recording does not land on
+it.
+
+Stepping a fixed quantum per frame does fix that, and was tried and reverted —
+it makes simulated time run at whatever rate the frames do, so a machine that
+cannot hold 60Hz plays in slow motion. A game should not make that trade for a
+feature it uses occasionally.
+
+So a replay rolls the balls for the look of the thing and then puts them
+exactly where the recording says they ended up. What you watch is what
+happened rather than something very like it, and the positions are the whole
+diagnosis on their own for a game sent to somebody who never runs it.
+
 ## House rules
 
 Eight ball has one codified set of rules and a great many pub variants. The
