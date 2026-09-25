@@ -97,8 +97,12 @@ var LLM = (function () {
                 // the reasoning is spent out of this same budget, and a model
                 // that thinks its way through the whole of it returns nothing
                 // at all. Answering costs a few hundred; the rest is headroom.
-                if (variant) out.max_completion_tokens = 16000;
+                if (variant >= 1) out.max_completion_tokens = 16000;
                 else out.max_tokens = 16000;
+                // Dropped on the last rung: not every openai-compatible api
+                // takes it, and a 400 over the output format is not worth
+                // losing the turn to when the prompt asks for json anyway.
+                if (variant < 2) out.response_format = {type: 'json_object'};
                 return out;
             },
             answer: function (data) {
@@ -215,10 +219,17 @@ var LLM = (function () {
         'Those are habits, not rules. You can see the position and they cannot. ' +
         'Think about where the cue ball goes after contact and whether a pocket is ' +
         'waiting there, and where it leaves you for the next one.\n\n' +
-        'Answer with action "pot" and a pot number from the list; or "safety" with ' +
-        'a point to roll to, when nothing is on or nothing is worth taking; or ' +
-        '"place" with where to put the cue ball, when the brief says it is in hand. ' +
-        'Keep reason to one sentence - it is shown to somebody watching the game.';
+        'Answer with one json object and nothing else - no prose around it, no ' +
+        'explanation before it:\n\n' +
+        '{"reason": "one sentence, shown to somebody watching the game",\n' +
+        ' "action": "pot" | "safety" | "place",\n' +
+        ' "pot": the number from the list above, or 0 when not potting,\n' +
+        ' "x": cm across and "y": cm up - where to roll to for a safety, or ' +
+        'where to put the cue ball for a place; 0 and 0 when potting,\n' +
+        ' "power": 0 to 1, "side": -1 to 1, "vert": -1 to 1}\n\n' +
+        'Use "pot" with a number from the list; "safety" when nothing is on or ' +
+        'nothing is worth taking; "place" when the brief says the cue ball is in ' +
+        'hand. Every field every time.';
 
     /* ------------------------------------------------------------------ *
      * per seat state
@@ -403,6 +414,7 @@ var LLM = (function () {
 
     var probed = {};                   // provider id -> what it said
     var networkSeen = false;
+    var settled = {};                  // provider id -> request shape it accepted
 
     function probe(id, key) {
         if (probed[id]) return Promise.resolve(probed[id]);
@@ -757,8 +769,24 @@ var LLM = (function () {
      * Is this the api telling us we named a parameter it does not take? Those
      * are worth one retry with the other name; everything else is not.
      */
-    function paramProblem(message) {
-        return /max_tokens|max_completion_tokens|[Uu]nsupported parameter/.test(message);
+    /**
+     * Which shape to try next after a 400 that names something we sent.
+     *
+     * These apis agree on the request until they do not: some models want
+     * max_completion_tokens where others want max_tokens, and not all of them
+     * take response_format at all. Rather than guess per model - the model is
+     * free text and the api is the only authority - send the best shape, read
+     * the complaint, and step down.
+     *
+     * @return {number} the next variant to try, or -1 to give up
+     */
+    function nextVariant(message, variant) {
+        if (/response_format/.test(message)) return variant < 2 ? 2 : -1;
+        if (/max_tokens|max_completion_tokens/.test(message)) return variant < 1 ? 1 : -1;
+        if (/[Uu]nsupported parameter|[Uu]nknown parameter/.test(message)) {
+            return variant < 2 ? variant + 1 : -1;
+        }
+        return -1;
     }
 
     function parse(text) {
@@ -812,12 +840,22 @@ var LLM = (function () {
             });
         }
 
-        return send(0).catch(function (err) {
-            if (err.status !== 400 || !paramProblem(err.message)) throw err;
-            say(player, 'meta', 'Retrying with max_completion_tokens: ' +
-                escape(err.message));
-            return send(1);
-        }).then(function (data) {
+        function attempt(variant) {
+            return send(variant).then(function (data) {
+                // Remember the shape that worked: rediscovering it costs a
+                // rejected request at the start of every single turn.
+                settled[cfg.provider] = variant;
+                return data;
+            }).catch(function (err) {
+                var next = err.status === 400 ? nextVariant(err.message, variant) : -1;
+                if (next < 0) throw err;
+                say(player, 'meta', 'Adjusting the request and retrying: ' +
+                    escape(err.message));
+                return attempt(next);
+            });
+        }
+
+        return attempt(settled[cfg.provider] || 0).then(function (data) {
             var u = provider.usage(data);
             spent += (u.inp * cfg.priceIn + u.out * cfg.priceOut) / 1e6;
 
