@@ -75,6 +75,13 @@ var verbose = !!arg('verbose', false);
 var specA = arg('a', 'greedy'), specB = arg('b', 'greedy');
 var seed0 = +arg('seed', 1);
 
+/*
+ * Requiring this file must not play a match. collect.js learned that the hard
+ * way - a test asked for it and got four forked workers and a pile of stray
+ * data - and this one had the same open door.
+ */
+if (require.main !== module) return;
+
 ready([specA, specB]).then(run).catch(function (err) {
     console.error(err.message);
     process.exit(1);
