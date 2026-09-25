@@ -40,6 +40,8 @@ function shot(opts) {
         first: opts.first === undefined ? 1 : opts.first,
         potted: opts.potted || [],
         rail: opts.rail === undefined ? true : opts.rail,
+        cueRailFirst: !!opts.cueRailFirst,
+        eightRail: !!opts.eightRail,
         breakShot: !!opts.breakShot,
         target: opts.target === undefined ? null : opts.target
     };
@@ -205,6 +207,80 @@ check('a spotted ball goes behind anything already there',
     Math.hypot(crowded.ball(8).x - crowded.ball(0).x,
         crowded.ball(8).y - crowded.ball(0).y) > 2.05 * crowded.radius,
     crowded.ball(8).x.toFixed(3) + ',' + crowded.ball(8).y.toFixed(3));
+
+/* ------------------------------------------------------------------ */
+
+console.log('');
+console.log('the house rules on the black');
+
+// Assigning an option that does not exist would silently create it, so every
+// case below would pass against a rulebook that had never heard of these.
+check('the rulebook declares them', typeof Rules.options.blackBank === 'boolean' &&
+    typeof Rules.options.blackKick === 'boolean', JSON.stringify(Rules.options));
+check('and they are off unless asked for',
+    !Rules.options.blackBank && !Rules.options.blackKick);
+
+// On the 8 with nothing else left. Whether dropping it wins or loses depends
+// entirely on which house rule is in force and where the cushions came in.
+function black(extra) {
+    var w = table([0, 8]);
+    var opts = {first: 8, potted: [8], rail: true, target: 'eight'};
+    Object.keys(extra || {}).forEach(function (k) { opts[k] = extra[k]; });
+    return Rules.resolve(w, {groups: ['solids', 'stripes'], player: 0, open: false},
+        shot(opts));
+}
+
+function won(res) { return res.gameOver && res.gameOver.winner === 0; }
+
+Rules.options.blackBank = false;
+Rules.options.blackKick = false;
+check('both off, straight in wins it', won(black()));
+
+/* the bank rule: the 8 has to come off a cushion on its way in */
+Rules.options.blackBank = true;
+check('bank on, straight in loses it', !won(black()));
+check('bank on, says why', /8 has to come off a cushion/.test(black().message),
+    black().message);
+check('bank on, off a cushion and in wins it', won(black({eightRail: true})));
+check('bank on, a cue ball cushion does not satisfy it',
+    !won(black({cueRailFirst: true})));
+
+// it is about where the 8 went, so it says nothing about a shot that misses
+var missed = Rules.resolve(table([0, 8]), {groups: ['solids', 'stripes'], player: 0, open: false},
+    shot({first: 8, potted: [], rail: true, target: 'eight'}));
+check('bank on, a legal miss is still a legal miss', !missed.foul, missed.foul);
+Rules.options.blackBank = false;
+
+/* the kick rule: the cue ball has to come off a cushion before touching the 8 */
+Rules.options.blackKick = true;
+check('kick on, aiming straight at it loses it', !won(black()));
+check('kick on, says why', /cue ball has to come off a cushion/.test(black().message),
+    black().message);
+check('kick on, off a cushion and in wins it', won(black({cueRailFirst: true})));
+check('kick on, the 8 banking does not satisfy it', !won(black({eightRail: true})));
+
+// it is about how you addressed the 8, so it judges a miss too
+var addressed = Rules.resolve(table([0, 8]), {groups: ['solids', 'stripes'], player: 0, open: false},
+    shot({first: 8, potted: [], rail: true, target: 'eight'}));
+check('kick on, a direct miss is a foul', !!addressed.foul, 'no foul');
+Rules.options.blackKick = false;
+
+/* neither touches an ordinary pot */
+Rules.options.blackBank = true;
+Rules.options.blackKick = true;
+var onSolids = Rules.resolve(table([0, 3, 8]),
+    {groups: ['solids', 'stripes'], player: 0, open: false},
+    shot({first: 3, potted: [3], rail: true, target: 'solids'}));
+check('neither touches a shot on your own group', !onSolids.foul, onSolids.foul);
+
+// and both at once is playable: it needs a cushion at each end
+check('both on, both cushions wins it',
+    won(black({cueRailFirst: true, eightRail: true})));
+check('both on, only one of them does not',
+    !won(black({cueRailFirst: true})) && !won(black({eightRail: true})));
+
+Rules.options.blackBank = false;
+Rules.options.blackKick = false;
 
 /* ------------------------------------------------------------------ */
 

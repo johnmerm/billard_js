@@ -16,6 +16,25 @@
 var Rules = (function () {
     'use strict';
 
+    /**
+     * Rules that are not in the rulebook everyone shares.
+     *
+     * Eight ball has one codified set and a great many pub variants, and the
+     * ones worth having are the ones somebody actually plays by. They live
+     * here, off by default, so the game is the standard one until it is asked
+     * not to be.
+     */
+    var options = {
+        // Two separate house rules, not one either-or, and each is its own
+        // game. The bank rule is about where the 8 goes: it has to come off a
+        // cushion on the way in, so sinking it straight loses. The kick rule
+        // is about how you may address it: you may not aim at it directly, so
+        // the cue ball has to come off a cushion before it touches it. Both at
+        // once is legal, and needs a cushion at each end.
+        blackBank: false,
+        blackKick: false
+    };
+
     /** Which half of the rack a ball belongs to; the cue ball and 8 are neither. */
     function groupOf(id) {
         if (id === 0 || id === 8) return null;
@@ -69,6 +88,8 @@ var Rules = (function () {
             first: null,              // id of the first ball the cue ball touched
             potted: [],               // everything that dropped, cue ball included
             rail: false,              // did anything reach a cushion after contact
+            cueRailFirst: false,      // cue ball off a cushion before it touched anything
+            eightRail: false,         // the 8 off a cushion at any point
             breakShot: !broken,
             target: legalTarget(world, groups, player)
         };
@@ -83,6 +104,10 @@ var Rules = (function () {
                 }
             } else if (e.type === 'cushion') {
                 if (shot.first !== null) shot.rail = true;
+                // Nothing but the cue ball is moving before the first contact,
+                // so a cushion before then is the cue ball's by definition.
+                else shot.cueRailFirst = true;
+                if (e.ball && e.ball.id === 8) shot.eightRail = true;
             } else if (e.type === 'pot') {
                 shot.potted.push(e.ball.id);
             }
@@ -137,6 +162,20 @@ var Rules = (function () {
         if (!out.foul && potted.length === 0 && !shot.rail) {
             out.foul = 'No ball potted and nothing reached a cushion.';
         }
+
+        // The house rules on the black, off unless asked for. The kick rule
+        // judges the shot whether or not the 8 drops, because it is about how
+        // you were allowed to address it; the bank rule only bites when the 8
+        // actually goes in, because it is about where it went.
+        if (!out.foul && options.blackKick && target === 'eight' &&
+                shot.first === 8 && !shot.cueRailFirst) {
+            out.foul = 'House rule: the cue ball has to come off a cushion ' +
+                'before it touches the 8.';
+        }
+        if (!out.foul && options.blackBank && target === 'eight' &&
+                eight && !shot.eightRail) {
+            out.foul = 'House rule: the 8 has to come off a cushion before it drops.';
+        }
         if (scratch) out.foul = out.foul || 'Scratch - the cue ball went down.';
 
         // the 8 ball on the break is nobody's fault: it gets spotted and play
@@ -152,8 +191,12 @@ var Rules = (function () {
             out.gameOver = (cleared && !out.foul && !scratch)
                 ? {winner: player, why: 'potted the 8 ball to win'}
                 : {winner: 1 - player, why: 'wins: the 8 ball went down early'};
+            // The foul is why they lost, and the game over line was throwing
+            // it away - so the one shot that ends a game was the one shot that
+            // did not say what was wrong with it.
             out.message = 'Player ' + (out.gameOver.winner + 1) + ' ' +
-                out.gameOver.why + '. Press R for a new rack.';
+                out.gameOver.why + '.' + (out.foul ? ' ' + out.foul : '') +
+                ' Press R for a new rack.';
             return out;
         }
 
@@ -229,6 +272,7 @@ var Rules = (function () {
     }
 
     return {
+        options: options,
         groupOf: groupOf,
         remaining: remaining,
         legalTarget: legalTarget,

@@ -175,6 +175,33 @@ library.
 `lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`, `draw.js` and
 `ball_textures.js` belong to the old `demo.html` prototype and are untouched.
 
+## House rules
+
+Eight ball has one codified set of rules and a great many pub variants. The
+variants live in `Rules.options`, off by default, so the game is the standard
+one until it is asked not to be:
+
+| rule | what it does |
+|---|---|
+| `blackbank` | the 8 has to come off a cushion before it drops — sink it straight in and you lose |
+| `blackkick` | the cue ball has to come off a cushion before it touches the 8 — you may not aim at it directly |
+
+These are two different games, not one rule worded twice. The bank rule is
+about *where the 8 went*, so it only bites when the 8 actually drops and a
+legal miss stays a legal miss. The kick rule is about *how you were allowed to
+address it*, so it judges the shot whether or not the 8 goes in. Both at once
+is legal, and needs a cushion at each end.
+
+Turn them on with `?house=blackbank`, `?house=blackkick` or both comma
+separated, which is where they belong: a house rule has to be agreed before
+anybody breaks, and a link is how you agree it. The corner marker names the
+ones in force, and `Billiards.houseRule('blackbank', true)` flips one mid-game
+for trying it out.
+
+Neither is in the WPA or blackball rulebooks — they are house rules, widespread
+enough to have names. The codified requirement those *do* put on the 8 is
+calling the pocket, which this does not implement.
+
 ## One rulebook
 
 `rules.js` holds the eight ball rules and nothing else, and `Rules.resolve` is a

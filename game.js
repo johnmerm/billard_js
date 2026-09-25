@@ -1339,6 +1339,7 @@
                 }
             }
         }
+        readHouseRules();
         showBuild();
         window.requestAnimationFrame(frame);
     }
@@ -1836,11 +1837,39 @@
             text: ref.length > 22 ? ref.slice(0, 21) + '\u2026' : ref};
     }
 
+    /**
+     * House rules, off unless the url asks for them.
+     *
+     * `?house=blackcushion` turns on the one that says a cushion has to come
+     * into the shot that finishes a game. It lives in the url rather than
+     * behind a control because it has to be agreed before anyone breaks, and
+     * a link is how you agree it.
+     */
+    var HOUSE = {blackbank: 'blackBank', blackkick: 'blackKick'};
+
+    function readHouseRules() {
+        var asked = ((window.location.search.match(/[?&]house=([^&]*)/) || [])[1] || '')
+            .toLowerCase().split(',');
+        Object.keys(HOUSE).forEach(function (name) {
+            Rules.options[HOUSE[name]] = asked.indexOf(name) >= 0;
+        });
+    }
+
+    /** Which are on now - not the same question as what the url asked for,
+     *  once anybody has flipped one by hand. */
+    function houseRulesOn() {
+        return Object.keys(HOUSE).filter(function (name) {
+            return Rules.options[HOUSE[name]];
+        });
+    }
+
     function showBuild() {
         var el = document.getElementById('build');
         if (!el) return;
         var ref = servedFrom();
-        el.textContent = 'build ' + BUILD + (ref ? ' \u00b7 ' + ref.text : ' \u00b7 local');
+        var house = houseRulesOn();
+        el.textContent = 'build ' + BUILD + (ref ? ' \u00b7 ' + ref.text : ' \u00b7 local') +
+            (house.length ? ' \u00b7 ' + house.join(' ') : '');
         el.className = ref && !ref.pinned ? 'loose' : '';
         el.title = ref
             ? (ref.pinned ? 'Pinned to a commit: this page cannot change.'
@@ -1852,6 +1881,13 @@
     window.Billiards = {
         build: BUILD,
         servedFrom: servedFrom,
+        /** Turn a house rule on or off mid-game, for trying one out. */
+        houseRule: function (name, on) {
+            var key = HOUSE[String(name).toLowerCase()];
+            if (key) Rules.options[key] = !!on;
+            showBuild();
+            return Rules.options;
+        },
         state: state,
         world: function () { return world; },
         newGame: newGame,
