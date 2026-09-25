@@ -844,22 +844,28 @@
     /** Turn what the model said into a shot on the table. */
     function playAnswer(player, answer) {
         var api = window.Billiards;
+        var seat = player + 1;          // every move names its seat, so a turn
+                                        // that moved on while the model was
+                                        // thinking cannot be played for its owner
 
         if (state.phase === 'ballInHand') {
             var put = answer.action === 'place'
-                ? api.placeCue(answer.x, answer.y)
+                ? api.placeCue(answer.x, answer.y, seat)
                 : 'not a placement';
             // A spot that is off the table or on top of a ball is refused, and
             // so is a shot answered where a placement was asked for. Either
             // way the turn has to go somewhere, so it goes somewhere legal.
             if (put.indexOf('placed') < 0) {
-                api.placeCue(state.kitchenOnly ? 40 : 112, 56);
+                api.placeCue(state.kitchenOnly ? 40 : 112, 56, seat);
             }
             return;
         }
 
-        if (answer.action === 'pot') api.play(answer.pot, answer.power, answer.side, answer.vert);
-        else api.aim(answer.x, answer.y, answer.power, answer.side, answer.vert);
+        if (answer.action === 'pot') {
+            api.play(answer.pot, answer.power, answer.side, answer.vert, seat);
+        } else {
+            api.aim(answer.x, answer.y, answer.power, answer.side, answer.vert, seat);
+        }
     }
 
     /** The position as the players and the network both see it. */
