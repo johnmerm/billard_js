@@ -121,6 +121,22 @@
     .chip.striped { background: linear-gradient(#f6f4ef 0 26%, var(--c) 26% 74%, #f6f4ef 74%); }
     .chip.gone { opacity: 0.2; }
 
+    /* The whole rack while nobody owns a half of it. The chips here are the
+       same elements that end up in the two rows, which is what lets them be
+       animated from one place to the other rather than vanishing and
+       reappearing somewhere else. */
+    .groupline.rack { display: none; flex-wrap: wrap; }
+    .groupline.rack.open { display: block; }
+    .groupline.rack .grp { opacity: 0.6; }
+
+    /* A chip on its way to its owner's row. Position is animated from where it
+       was, so it is the transform that moves and the layout is already final. */
+    .chip.settling { position: relative; z-index: 2; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .chip.settling { transition: none !important; }
+    }
+
     /* --------------------------------------------------------- buttons */
 
     button {
@@ -656,6 +672,7 @@
         <div id="message"></div>
         <div id="group0" class="groupline"></div>
         <div id="group1" class="groupline"></div>
+        <div id="openrack" class="groupline rack"></div>
     </div>
 
     <div id="buttons" class="panel">
@@ -711,23 +728,23 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=42"></script>
-    <script src="lib/three.js?v=42"></script>
-    <script src="lib/cannon-es.js?v=42"></script>
-    <script src="phys.js?v=42"></script>
-    <script src="rules.js?v=42"></script>
-    <script src="ball_skins.js?v=42"></script>
-    <script src="render.js?v=42"></script>
-    <script src="render2d.js?v=42"></script>
-    <script src="train/geometry.js?v=42"></script>
-    <script src="brief.js?v=42"></script>
-    <script src="train/match.js?v=42"></script>
-    <script src="train/bot.js?v=42"></script>
-    <script src="train/encode.js?v=42"></script>
-    <script src="train/player.js?v=42"></script>
-    <script src="ai.js?v=42"></script>
-    <script src="llm.js?v=42"></script>
-    <script src="game.js?v=42"></script>
+    <script src="panels.js?v=43"></script>
+    <script src="lib/three.js?v=43"></script>
+    <script src="lib/cannon-es.js?v=43"></script>
+    <script src="phys.js?v=43"></script>
+    <script src="rules.js?v=43"></script>
+    <script src="ball_skins.js?v=43"></script>
+    <script src="render.js?v=43"></script>
+    <script src="render2d.js?v=43"></script>
+    <script src="train/geometry.js?v=43"></script>
+    <script src="brief.js?v=43"></script>
+    <script src="train/match.js?v=43"></script>
+    <script src="train/bot.js?v=43"></script>
+    <script src="train/encode.js?v=43"></script>
+    <script src="train/player.js?v=43"></script>
+    <script src="ai.js?v=43"></script>
+    <script src="llm.js?v=43"></script>
+    <script src="game.js?v=43"></script>
 
 <div id="build"></div>
 

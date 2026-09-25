@@ -133,6 +133,7 @@
         state.side = state.vert = 0;
         state.angle = 0;
         state.seats = ['human', 'human'];
+        wasOpen = true;             // a fresh rack belongs to nobody again
         state.pocketed = [];
         state.message = 'Break them up: place the cue ball behind the line and fire.';
         state.ghost = null;
@@ -551,8 +552,64 @@
     function chip(id, dim) {
         var color = BallSkins.color(id);
         var stripe = id > 8;
+        // data-id is what lets a chip be recognised as the same chip after the
+        // panel is rewritten, which is the whole of the trick below.
         return '<span class="chip' + (dim ? ' gone' : '') + (stripe ? ' striped' : '') +
-            '" style="--c:' + color + '">' + id + '</span>';
+            '" data-id="' + id + '" style="--c:' + color + '">' + id + '</span>';
+    }
+
+    /* ------------------------------------------------------------------ *
+     * moving the chips to their owners
+     *
+     * Until somebody pots a ball the table is open and neither half belongs to
+     * anyone, so the panel shows the rack whole, in one row, greying each ball
+     * as it drops. The shot that closes the table is the moment those balls
+     * acquire owners, and saying so by having them move there is worth more
+     * than a row appearing fully formed where a moment ago there was nothing.
+     *
+     * The panel is rewritten wholesale on every change, so the chips cannot be
+     * animated in place. Instead: note where each one was, let the rewrite put
+     * it where it now belongs, then start it back at the old position and let
+     * it travel. The layout is final throughout and only a transform moves,
+     * which is why nothing reflows while it runs.
+     * ------------------------------------------------------------------ */
+
+    var SETTLE_SLIDE = 520;
+
+    function chipBoxes() {
+        var boxes = {};
+        var chips = document.querySelectorAll('#status .chip[data-id]');
+        for (var i = 0; i < chips.length; i++) {
+            boxes[chips[i].getAttribute('data-id')] = chips[i].getBoundingClientRect();
+        }
+        return boxes;
+    }
+
+    function slideChipsFrom(before) {
+        var chips = document.querySelectorAll('#status .chip[data-id]');
+        for (var i = 0; i < chips.length; i++) {
+            var el = chips[i];
+            var was = before[el.getAttribute('data-id')];
+            if (!was) continue;
+            var now = el.getBoundingClientRect();
+            var dx = was.left - now.left, dy = was.top - now.top;
+            if (!dx && !dy) continue;
+
+            el.classList.add('settling');
+            el.style.transition = 'none';
+            el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+            void el.offsetWidth;          // let that land before releasing it
+            el.style.transition = 'transform ' + SETTLE_SLIDE + 'ms cubic-bezier(.2,.8,.2,1)';
+            el.style.transform = '';
+        }
+        window.setTimeout(function () {
+            var done = document.querySelectorAll('#status .chip.settling');
+            for (var j = 0; j < done.length; j++) {
+                done[j].classList.remove('settling');
+                done[j].style.transition = '';
+                done[j].style.transform = '';
+            }
+        }, SETTLE_SLIDE + 60);
     }
 
     // What the chip says. Empty it reads as the question it asks rather than
@@ -582,7 +639,15 @@
         return 'open';
     }
 
+    var wasOpen = true;
+
     function updateHud() {
+        // Captured before the rewrite, used after it: the shot that closes the
+        // table is the only one where the chips have somewhere new to be.
+        var settling = wasOpen && !state.open;
+        var before = settling ? chipBoxes() : null;
+        wasOpen = state.open;
+
         var turn = document.getElementById('turn');
         turn.textContent = state.phase === 'over' ? 'Game over' : 'Player ' + (state.player + 1);
         turn.className = 'p' + state.player;
@@ -607,6 +672,23 @@
             el.innerHTML = html;
             el.className = 'groupline' + (state.player === p ? ' active' : '');
         }
+
+        var rack = document.getElementById('openrack');
+        if (rack) {
+            if (state.open) {
+                var whole = '<span class="grp">table open</span> ';
+                [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15].forEach(function (id) {
+                    whole += chip(id, !world.ball(id).active);
+                });
+                rack.innerHTML = whole;
+                rack.className = 'groupline rack open';
+            } else {
+                rack.innerHTML = '';
+                rack.className = 'groupline rack';
+            }
+        }
+
+        if (settling) slideChipsFrom(before);
     }
 
     // updateHud rebuilds markup, so only run it when there is something new to say
@@ -622,7 +704,8 @@
             if (!world.balls[i].active) down |= 1 << i;
         }
 
-        var key = state.player + '|' + state.phase + '|' + state.message + '|' + down;
+        var key = state.player + '|' + state.phase + '|' + state.message + '|' + down +
+            '|' + state.open + '|' + state.groups.join(',');
         if (key === hudShown) return;
         hudShown = key;
         updateHud();
