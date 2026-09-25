@@ -530,6 +530,41 @@ loads plain scripts and needs no build step and no package manager. The model is
 saved in the layout `tf.loadLayersModel` expects, so the page can pick it up as
 a static file like everything else.
 
+### Retraining for a house rule, and why there is no model for one
+
+There isn't one, and the attempt is worth recording rather than repeating.
+
+Wiring the cushion shots in fixed the house rules on its own. The baseline bot
+went from 0 wins in 40 under `blackkick` to 29, and from 16 to 28 under
+`blackbank`, with the standard-rules network untouched — giving it a legal shot
+to choose was the whole of it. Retraining was always going to be a refinement
+on top of that, not the repair.
+
+So 800 racks were collected under `blackbank` — 12,997 turns, twenty minutes —
+and trained at the same width as the shipped model. The result:
+
+| | |
+|---|---|
+| best validation mse | 0.9984, at epoch 1, overfitting from epoch 2 |
+| a constant 0.061 scores | **0.9962** |
+| sign accuracy, held back | 51.3% |
+| sign accuracy, training | 57.7% |
+
+Guessing the same number every time beats it, and the six points between
+training and held-back accuracy are memorisation. A null result, and a clean
+one.
+
+Round one needed ~70,000 turns to separate from its own baseline. This was a
+fifth of that, on a rule that only changes the endgame, so the signal is
+thinner still than the ratio suggests — the fraction of positions where the
+rule alters anything at all is small. Five to eight times the data, two or
+three hours of collecting, is the honest price of finding out whether the
+refinement exists.
+
+Before paying it, the cheaper question is whether there is anything to
+recover: measure the standard-rules model's endgame under the house rule
+first. If it already handles those positions, there is nothing to learn.
+
 ### Playing against it
 
 Each player's line in the score panel carries a small **AI** chip. Pressing it
