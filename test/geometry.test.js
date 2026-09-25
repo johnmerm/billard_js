@@ -156,6 +156,72 @@ check('most pots under a forty degree cut actually drop',
 /* ------------------------------------------------------------------ */
 
 console.log('');
+console.log('off a cushion');
+
+// The mirror itself is arithmetic and worth pinning exactly: everything the
+// bank and kick shots do rests on it being right.
+var m = Geometry.mirror({x: 1, y: 2}, {x1: 0, y1: 0, x2: 5, y2: 0});
+check('a point reflects in a horizontal cushion', m.x === 1 && m.y === -2, JSON.stringify(m));
+var m2 = Geometry.mirror({x: 1, y: 2}, {x1: 3, y1: -5, x2: 3, y2: 5});
+check('and in a vertical one', m2.x === 5 && m2.y === 2, JSON.stringify(m2));
+
+check('a crossing on the cushion is found',
+    !!Geometry.meets(1, 1, 1, -1, {x1: 0, y1: 0, x2: 5, y2: 0}));
+check('a crossing past its end is not',
+    Geometry.meets(9, 1, 9, -1, {x1: 0, y1: 0, x2: 5, y2: 0}) === null);
+
+// And then the standard the rest of this file holds itself to: set the shot
+// up, play it, and see whether the ball went in. A cushion has a restitution
+// under one and takes speed out of the ball, so the mirror gives the aim and
+// not the outcome - this is what says whether the aim is good enough to be
+// worth simulating at all.
+var tried = 0, dropped = 0;
+for (var trial = 0; trial < 12; trial++) {
+    var bx = 0.6 + (trial % 4) * 0.35, by = 0.30 + Math.floor(trial / 4) * 0.26;
+
+    var look = table();
+    var lc = new Phys.Ball(0, 0, 0), lb = new Phys.Ball(8, 0, 0);
+    look.add(lc); look.add(lb);
+    lc.placeAt(0.35, 0.56); lb.placeAt(bx, by);
+
+    var banks = Geometry.cushionShots(look, [lb], 'bank');
+    if (!banks.length) continue;
+
+    [4, 6, 8].forEach(function (power) {
+        var w = table();
+        var cue = new Phys.Ball(0, 0, 0), ball = new Phys.Ball(8, 0, 0);
+        w.add(cue); w.add(ball);
+        cue.placeAt(0.35, 0.56); ball.placeAt(bx, by);
+        w.strike(cue, Math.cos(banks[0].angle), Math.sin(banks[0].angle), power, 0, 0, 0);
+        tried++;
+        if (potted(settle(w), 8)) dropped++;
+    });
+}
+check('the shortlist offers banks at all', tried > 0, tried + ' played');
+// It measured 16 of 36 when written. A quarter is well clear of that and well
+// clear of nothing, which is the distinction this is here to catch.
+check('and a mirrored bank drops often enough to be worth simulating',
+    dropped * 4 >= tried, dropped + ' of ' + tried + ' dropped');
+
+// A kick aims the cue ball at a cushion rather than at the ball, so its first
+// leg must point somewhere other than straight at the object ball.
+var kw = table();
+var kc = new Phys.Ball(0, 0, 0), kb = new Phys.Ball(8, 0, 0);
+kw.add(kc); kw.add(kb);
+kc.placeAt(0.4, 0.56); kb.placeAt(1.6, 0.56);
+var kicks = Geometry.cushionShots(kw, [kb], 'kick');
+check('kicks are offered too', kicks.length > 0, kicks.length + ' found');
+if (kicks.length) {
+    var straight = Math.atan2(0, 1.2);
+    check('and none of them is the straight shot',
+        kicks.every(function (k) { return Math.abs(k.angle - straight) > 0.02; }));
+    check('each one names where it meets the cushion',
+        kicks.every(function (k) { return k.via && isFinite(k.via.x) && isFinite(k.via.y); }));
+}
+
+/* ------------------------------------------------------------------ */
+
+console.log('');
 if (failures) {
     console.log(failures + ' check(s) failed');
     process.exit(1);

@@ -83,12 +83,21 @@
     }
 
     /** Drop the fifteen object balls into a fresh triangle. */
-    function rack() {
+    /**
+     * Set the rack up. `order` is the slot list a previous rack used, for
+     * replaying one: putting balls back at remembered coordinates is not
+     * bit exact - a position read out and written back travels through the
+     * table's own offset both ways - and on a break that is all chaos needs.
+     * Racking again from the same order runs the identical arithmetic.
+     */
+    function rack(order) {
         var r = world.radius;
         var gap = 2 * r * 1.02;
         var footX = TABLE_W * 0.72;
 
-        var order = rackOrder(), n = 0;
+        var n = 0;
+        order = order || rackOrder();
+        lastOrder = order;
         for (var row = 0; row < 5; row++) {
             for (var j = 0; j <= row; j++) {
                 var ball = world.ball(order[n++]);
@@ -98,7 +107,9 @@
         cueBall.placeAt(TABLE_W * 0.22, TABLE_H / 2);
     }
 
-    function newGame() {
+    var lastOrder = null;
+
+    function newGame(order) {
         if (typeof AI !== 'undefined') AI.cancel();
         state.lining = null;
         state.aiPause = 0;
@@ -121,7 +132,7 @@
                 flatMode(err);
             }
         }
-        rack();
+        rack(order);
         state.phase = 'ballInHand';
         cueBall.lift();
         state.player = 0;
@@ -134,10 +145,12 @@
         state.angle = 0;
         state.seats = ['human', 'human'];
         wasOpen = true;             // a fresh rack belongs to nobody again
+        replaying = false;
         state.pocketed = [];
         state.message = 'Break them up: place the cue ball behind the line and fire.';
         state.ghost = null;
 
+        startLog();                 // the rack is set, so it can be written down
         drawSpinWidget();
         updateHud();
         return true;
@@ -164,6 +177,8 @@
         // the legal target has to be read now: by the time the shot is judged,
         // the ball it was aimed at may already be off the table
         shot = Rules.newShot(world, state.groups, state.player, state.broken);
+        note({a: state.angle, pw: state.power, s: state.side, v: state.vert,
+            e: state.elevation * Math.PI / 180});
         world.strike(cueBall, Math.cos(state.angle), Math.sin(state.angle),
             state.power, state.side, state.vert, state.elevation * Math.PI / 180);
         state.phase = 'rolling';
@@ -212,6 +227,7 @@
 
         if (out.gameOver) {
             state.phase = 'over';
+            if (log) log.result = {winner: out.gameOver.winner, why: out.gameOver.why};
             return;
         }
 
@@ -246,6 +262,7 @@
 
     function placeCueBall(x, y) {
         if (!placementLegal(x, y)) return false;
+        note({place: [x, y]});
         clearHint();
         cueBall.placeAt(x, y);
         state.phase = 'aiming';
@@ -464,6 +481,10 @@
             case 'KeyR':
                 newGame();
                 break;
+            case 'KeyG':
+                saveGame();
+                break;
+
             case 'KeyL':
                 Panels.resetAll();      // panels back to their corners
                 break;
@@ -1339,7 +1360,6 @@
                 }
             }
         }
-        readHouseRules();
         showBuild();
         window.requestAnimationFrame(frame);
     }
@@ -1556,6 +1576,7 @@
             if (e.pointerType === 'touch') markTouch();
         }, true);
 
+        readHouseRules();                  // before the first rack, which is logged under them
         if (!newGame()) return;            // no WebGL: the banner says so
         if (!checkVersions()) return;      // nothing below would work anyway
         initPanels();
@@ -1642,6 +1663,27 @@
         }, true);
         document.addEventListener('keydown', function (e) {
             if (e.code === 'Escape') closeSeatMenu();
+        });
+
+        // A saved game dropped on the table plays itself back. The file is the
+        // whole bug report, so opening it should be no harder than dropping it.
+        window.addEventListener('dragover', function (e) { e.preventDefault(); });
+        window.addEventListener('drop', function (e) {
+            e.preventDefault();
+            var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+                var saved = null;
+                try { saved = JSON.parse(reader.result); } catch (err) { /* not one */ }
+                if (!saved) {
+                    state.message = 'That file is not a saved game.';
+                    updateHud();
+                    return;
+                }
+                replay(saved);
+            };
+            reader.readAsText(file);
         });
 
         window.addEventListener('resize', drawSpinWidget);
@@ -1811,6 +1853,119 @@
     }
 
     /* ------------------------------------------------------------------ *
+     * writing the game down
+     *
+     * The physics is deterministic - a fixed step, off the wall clock - so a
+     * rack and the shots played on it are enough to reproduce a game exactly.
+     * That makes a saved game the right thing to attach to "something strange
+     * happened here": not a description of the bug, the bug itself.
+     *
+     * Positions and shot parameters are written as they are, unrounded. The
+     * rounding that would make the file pretty is the rounding that would make
+     * the replay diverge.
+     * ------------------------------------------------------------------ */
+
+    var LOG_FORMAT = 1;
+    var log = null;
+    var replaying = false;
+
+    function startLog() {
+        log = {
+            format: LOG_FORMAT,
+            build: BUILD,
+            when: new Date().toISOString(),
+            house: houseRulesOn(),
+            seats: state.seats.slice(),
+            order: lastOrder ? lastOrder.slice() : null,
+            shots: [],
+            result: null
+        };
+    }
+
+    function note(entry) {
+        if (!log || replaying) return;
+        entry.p = state.player;
+        log.shots.push(entry);
+    }
+
+    function gameLog() {
+        if (log) log.seats = state.seats.slice();
+        return log;
+    }
+
+    /** Hand the game over as a file, named so a pile of them still sorts. */
+    function saveGame() {
+        if (!log) return null;
+        var name = 'billiards-' + log.when.replace(/[:.]/g, '-').slice(0, 19) + '.json';
+        var blob = new Blob([JSON.stringify(gameLog())], {type: 'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        state.message = 'Saved ' + name + ' \u2014 ' + log.shots.length + ' entries.';
+        updateHud();
+        return name;
+    }
+
+    /**
+     * Play a saved game back.
+     *
+     * Every seat becomes a person for the duration, so nothing tries to take a
+     * turn of its own while the recording is being replayed, and the entries
+     * are fed in at the pace the table already uses for a shot nobody chose.
+     */
+    function replay(saved) {
+        if (!saved || saved.format !== LOG_FORMAT) {
+            state.message = 'That file is not a game this build can replay.';
+            updateHud();
+            return false;
+        }
+
+        // The rules go on before the rack, because the first thing the log
+        // records is the rack that was played under them.
+        Object.keys(HOUSE).forEach(function (name) {
+            Rules.options[HOUSE[name]] = (saved.house || []).indexOf(name) >= 0;
+        });
+        showBuild();
+
+        newGame(saved.order || undefined);
+        replaying = true;
+        state.seats = ['human', 'human'];
+
+        var at = 0;
+        (function next() {
+            if (!replaying || at >= saved.shots.length) {
+                replaying = false;
+                state.message = 'Replay finished: ' + saved.shots.length + ' entries.';
+                updateHud();
+                return;
+            }
+            var entry = saved.shots[at++];
+            if (entry.place) {
+                placeCueBall(entry.place[0], entry.place[1]);
+                window.setTimeout(next, 400);
+                return;
+            }
+            state.angle = entry.a;
+            state.side = entry.s;
+            state.vert = entry.v;
+            setElevation(entry.e * 180 / Math.PI);
+            state.power = entry.pw;
+            shoot();
+            var waiting = window.setInterval(function () {
+                if (state.phase === 'rolling') return;
+                window.clearInterval(waiting);
+                window.setTimeout(next, 500);
+            }, 60);
+        })();
+        return true;
+    }
+
+    /* ------------------------------------------------------------------ *
      * which build this is
      *
      * Read off the page's own url and this script's own cache tag, so neither
@@ -1881,6 +2036,9 @@
     window.Billiards = {
         build: BUILD,
         servedFrom: servedFrom,
+        gameLog: gameLog,
+        saveGame: saveGame,
+        replay: replay,
         /** Turn a house rule on or off mid-game, for trying one out. */
         houseRule: function (name, on) {
             var key = HOUSE[String(name).toLowerCase()];
@@ -1974,6 +2132,10 @@
         aimAt: function (x, y) { aimAt({x: x, y: y}); return state.angle; },
         shoot: function (power, side, vert, elevation) {
             if (state.phase !== 'aiming') return false;
+            // A NaN gets all the way to the audio before anything objects, and
+            // by then the shot has been taken with a nonsense power. This
+            // surface is driven by files and by agents, so it checks.
+            if (!isFinite(power)) return false;
             state.power = Phys.clamp(power, MIN_POWER, MAX_POWER);
             state.side = side || 0;
             state.vert = vert || 0;

@@ -125,7 +125,124 @@ var Geometry = (function () {
         return out;
     }
 
-    return {ghost: ghost, clear: clear, blocker: blocker, candidates: candidates};
+    /* ------------------------------------------------------------------ *
+     * off a cushion
+     *
+     * A bank is the same shot as a direct pot, aimed at the pocket's
+     * reflection: send the ball at where the pocket would be if the cushion
+     * were a mirror and it arrives at the real one. Same for a kick, with the
+     * cue ball mirrored instead, which is the shot the house rules on the
+     * black ask for and the direct shortlist cannot describe at all.
+     *
+     * The mirror is where the aim comes from, not where it ends: a cushion has
+     * a restitution under one and takes speed out of the ball, so the rebound
+     * is not the perfect reflection the geometry assumes. These are candidates
+     * to simulate, like the direct ones, and the simulator has the last word.
+     * ------------------------------------------------------------------ */
+
+    /** A point reflected in the infinite line a cushion segment lies on. */
+    function mirror(p, c) {
+        var ex = c.x2 - c.x1, ey = c.y2 - c.y1;
+        var len2 = ex * ex + ey * ey;
+        if (len2 < 1e-12) return null;
+
+        var t = ((p.x - c.x1) * ex + (p.y - c.y1) * ey) / len2;
+        var fx = c.x1 + ex * t, fy = c.y1 + ey * t;
+        return {x: 2 * fx - p.x, y: 2 * fy - p.y};
+    }
+
+    /**
+     * Where a->b crosses cushion `c`, if it does so on the cushion itself and
+     * between the two ends. A crossing on the extension of either is a mirror
+     * that reflects nothing.
+     */
+    function meets(ax, ay, bx, by, c) {
+        var rx = bx - ax, ry = by - ay;
+        var sx = c.x2 - c.x1, sy = c.y2 - c.y1;
+        var denom = rx * sy - ry * sx;
+        if (Math.abs(denom) < 1e-12) return null;          // parallel
+
+        var t = ((c.x1 - ax) * sy - (c.y1 - ay) * sx) / denom;
+        var u = ((c.x1 - ax) * ry - (c.y1 - ay) * rx) / denom;
+        if (t <= 1e-6 || t >= 1 - 1e-6) return null;
+        if (u <= 1e-6 || u >= 1 - 1e-6) return null;
+        return {x: ax + rx * t, y: ay + ry * t};
+    }
+
+    /**
+     * Pots that need a cushion, one reflection deep.
+     *
+     * @param {string} kind  'bank' sends the object ball off a cushion into
+     *     the pocket; 'kick' sends the cue ball off one before it arrives.
+     * @return {Array} the same shape the direct candidates have, plus `via`,
+     *     the point on the cushion, and `kind`.
+     */
+    function cushionShots(world, legal, kind, maxCut) {
+        var cue = world.ball(0);
+        var limit = maxCut === undefined ? 75 * Math.PI / 180 : maxCut;
+        var out = [];
+
+        legal.forEach(function (ball) {
+            if (!ball.active || ball === cue) return;
+
+            world.pockets.forEach(function (pocket, pi) {
+                world.cushions.forEach(function (c) {
+                    // The little 45s across the pocket mouths are jaws, not a
+                    // cushion anybody banks off on purpose.
+                    if (c.jaw) return;
+
+                    var g, via;
+                    if (kind === 'bank') {
+                        var aim = mirror(pocket, c);
+                        if (!aim) return;
+                        g = ghost(world, cue, ball, aim);
+                        if (!g) return;
+                        via = meets(ball.x, ball.y, aim.x, aim.y, c);
+                        if (!via) return;
+                        if (!clear(world, cue.x, cue.y, g.x, g.y, [cue, ball])) return;
+                        if (!clear(world, ball.x, ball.y, via.x, via.y, [cue, ball])) return;
+                        if (!clear(world, via.x, via.y, pocket.x, pocket.y, [cue, ball])) return;
+                    } else {
+                        var from = mirror(cue, c);
+                        if (!from) return;
+                        g = ghost(world, from, ball, pocket);
+                        if (!g) return;
+                        // The straight line is the mirrored one: from the
+                        // reflected cue ball to the ghost. Measuring it from
+                        // the real cue ball asks where the direct shot crosses
+                        // the cushion, which is nowhere.
+                        via = meets(from.x, from.y, g.x, g.y, c);
+                        if (!via) return;
+                        // The object ball is not ignored on the way out: a
+                        // cue ball that reaches the cushion by passing through
+                        // the ball it is trying to come back to has not kicked
+                        // at all, it has played the straight shot the rule
+                        // exists to forbid.
+                        if (!clear(world, cue.x, cue.y, via.x, via.y, [cue])) return;
+                        if (!clear(world, via.x, via.y, g.x, g.y, [cue, ball])) return;
+                        if (!clear(world, ball.x, ball.y, pocket.x, pocket.y, [cue, ball])) return;
+                        // the cue ball leaves along the real first leg, not the
+                        // mirrored one the ghost was measured from
+                        g.angle = Math.atan2(via.y - cue.y, via.x - cue.x);
+                    }
+                    if (g.cut > limit) return;
+
+                    out.push({
+                        ball: ball, pocket: pocket, pocketIndex: pi,
+                        kind: kind, via: via,
+                        angle: g.angle, cut: g.cut,
+                        distance: g.distance, toPocket: g.toPocket
+                    });
+                });
+            });
+        });
+
+        out.sort(function (a, b) { return a.cut - b.cut; });
+        return out;
+    }
+
+    return {ghost: ghost, clear: clear, blocker: blocker, candidates: candidates,
+        mirror: mirror, meets: meets, cushionShots: cushionShots};
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Geometry;
