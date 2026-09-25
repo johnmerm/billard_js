@@ -144,7 +144,8 @@ function place(world, pos, rand, kitchenOnly) {
             if (!Rules.placementLegal(world, x, y, kitchenOnly)) continue;
 
             world.ball(0).placeAt(x, y);
-            var shots = Geometry.candidates(world, legal);
+            var shots = Geometry.shortlist(world, legal,
+                Rules.demands(world, pos.groups, pos.player));
 
             // the straightest pot available matters more than how many there are
             var score = shots.length
@@ -170,7 +171,8 @@ function create(opts) {
         if (!pos.broken) return breakShot(world, rand);
 
         var legal = Rules.legalBalls(world, pos.groups, pos.player);
-        var shortlist = Geometry.candidates(world, legal);
+        var shortlist = Geometry.shortlist(world, legal,
+            Rules.demands(world, pos.groups, pos.player));
         if (!shortlist.length) return safety(world, pos, rand);
 
         var pick = function (c) {

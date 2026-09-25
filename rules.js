@@ -271,8 +271,25 @@ var Rules = (function () {
         ball.placeAt(W * 0.75, H / 2);
     }
 
+    /**
+     * What the shortlist has to satisfy for this player right now.
+     *
+     * The house rules on the black apply only when the black is what you are
+     * on, so this is where "which rules are in force" becomes "what shape of
+     * shot is legal", once, rather than in each caller.
+     */
+    function demands(world, groups, player) {
+        var onEight = legalTarget(world, groups, player) === 'eight';
+        return {
+            onEight: onEight,
+            bank: onEight && !!options.blackBank,
+            kick: onEight && !!options.blackKick
+        };
+    }
+
     return {
         options: options,
+        demands: demands,
         groupOf: groupOf,
         remaining: remaining,
         legalTarget: legalTarget,

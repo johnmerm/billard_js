@@ -77,9 +77,20 @@ var Brief = (function () {
 
         var left = Rules.remaining(world, mine);
         if (left === 0) {
+            var house = [];
+            if (Rules.options.blackBank) {
+                house.push('the 8 has to come off a cushion before it drops');
+            }
+            if (Rules.options.blackKick) {
+                house.push('the cue ball has to come off a cushion before it ' +
+                    'touches the 8');
+            }
             lines.push('You are ' + mine.toUpperCase() + ' and they are all ' +
                 'down: the 8 wins it, into any pocket. Hit the 8 first or it ' +
-                'is a foul.');
+                'is a foul.' + (house.length
+                    ? ' House rule: ' + house.join(', and ') +
+                      ' \u2014 the pots below already allow for it.'
+                    : ''));
         } else {
             lines.push('You are ' + mine.toUpperCase() + ', ' + left + ' left. ' +
                 'Hit one of yours first or it is a foul.');
@@ -148,7 +159,8 @@ var Brief = (function () {
     function pots(world, pos, lines) {
         var cue = world.ball(0);
         var legal = Rules.legalBalls(world, pos.groups, pos.player);
-        var on = Geometry.candidates(world, legal);
+        var on = Geometry.shortlist(world, legal,
+            Rules.demands(world, pos.groups, pos.player));
 
         lines.push('');
         if (!on.length) {
@@ -157,11 +169,14 @@ var Brief = (function () {
         } else {
             lines.push('Your pots, straightest first:');
             on.forEach(function (c, i) {
+                var how = c.kind === 'bank'
+                    ? '  off the cushion at ' + at(c.via)
+                    : c.kind === 'kick' ? '  via the cushion at ' + at(c.via) : '';
                 lines.push('  [' + (i + 1) + '] ' + pad(c.ball.id, 2) + ' into ' +
                     pad(pocketName(c.pocket), 11) +
                     '  cut ' + pad(deg(c.cut) + 'deg', 6) +
                     '  cue->ball ' + pad(cm(c.distance), 4) +
-                    '  ball->pocket ' + cm(c.toPocket));
+                    '  ball->pocket ' + cm(c.toPocket) + how);
             });
         }
 

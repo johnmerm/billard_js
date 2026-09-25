@@ -103,7 +103,13 @@ function encode(world, pos, into) {
 
     // --- what is actually on
     var legal = Rules.legalBalls(world, pos.groups, player);
-    var shots = cue.active ? Geometry.candidates(world, legal) : [];
+    // The rule-aware list, so "how many pots are on" means how many are
+    // legal rather than how many exist. Under a house rule on the black
+    // those are different numbers, and the wrong one would teach a network
+    // that the endgame is easier than it is.
+    var shots = cue.active
+        ? Geometry.shortlist(world, legal, Rules.demands(world, pos.groups, pos.player))
+        : [];
     var reach = world.width + world.height;
 
     out[at++] = Math.min(1, shots.length / SHORTLIST);

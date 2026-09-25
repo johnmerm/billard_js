@@ -26,6 +26,7 @@ var child = require('child_process');
 var Match = require('./match.js');
 var Bot = require('./bot.js');
 var Encode = require('./encode.js');
+var Rules = require('../rules.js');
 
 var STRIDE = Encode.SIZE + 2;          // features, then the label and the ply
 
@@ -118,6 +119,13 @@ if (require.main !== module) return;
 if (process.env.BILLIARDS_SHARD) {
     (async function () {
         var job = JSON.parse(process.env.BILLIARDS_SHARD);
+
+        // Before a single rack: the rules decide what the shortlist offers and
+        // what the endgame is worth, so a worker that starts playing first is
+        // collecting the wrong game.
+        Rules.options.blackBank = (job.house || []).indexOf('blackbank') >= 0;
+        Rules.options.blackKick = (job.house || []).indexOf('blackkick') >= 0;
+
         if (job.player) job.model = await require('./value.js').loadModel(job.player);
 
         var got = collect(job.games, job.seed, job);
@@ -141,6 +149,12 @@ var explore = +arg('explore', 0.12);
 var shots = +arg('shots', 3);
 var spread = +arg('spread', 1);
 
+// Which rules the games are played under. Data collected under one set is not
+// data about another: the house rules on the black change what the endgame is
+// worth, so a model trained on standard games judges an eight ball position it
+// has never actually been in.
+var house = String(arg('house', '') || '').toLowerCase().split(',').filter(Boolean);
+
 fs.mkdirSync(outDir, {recursive: true});
 
 var per = Math.ceil(games / workers);
@@ -151,7 +165,8 @@ var shards = [];
 console.log('collecting ' + games + ' racks across ' + workers + ' workers (' +
     (playerSpec ? 'player ' + playerSpec + ', explore=' + explore +
         ', shots=' + shots + ', spread=' + spread
-        : 'baseline bot, search=' + search) + ', noise=' + noise + ')');
+        : 'baseline bot, search=' + search) + ', noise=' + noise +
+    ', house=' + (house.length ? house.join('+') : 'standard') + ')');
 
 for (var i = 0; i < workers; i++) {
     var mine = Math.min(per, games - i * per);
@@ -166,7 +181,8 @@ for (var i = 0; i < workers; i++) {
                 games: mine, seed: seed0 + i * per * 1000,
                 file: file, search: search, noise: noise,
                 player: playerSpec === true ? 'model/value' : playerSpec,
-                explore: explore, shots: shots, spread: spread
+                explore: explore, shots: shots, spread: spread,
+                house: house
             })
         })
     });

@@ -110,7 +110,8 @@ function create(opts) {
      */
     function plan(world, pos) {
         var legal = Rules.legalBalls(world, pos.groups, pos.player);
-        var shortlist = Geometry.candidates(world, legal);
+        var shortlist = Geometry.shortlist(world, legal,
+            Rules.demands(world, pos.groups, pos.player));
         if (!shortlist.length) {
             return {
                 step: function () { return false; },

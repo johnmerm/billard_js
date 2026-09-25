@@ -241,8 +241,42 @@ var Geometry = (function () {
         return out;
     }
 
+    /**
+     * The shots a player may actually take, house rules included.
+     *
+     * Direct pots are the whole of it under the standard game, and they stay
+     * the whole of it under a house rule too until the shooter is on the 8 -
+     * these rules say nothing about any other ball. That is what keeps this
+     * cheap: the cushion search only ever runs when exactly one ball is legal,
+     * so it costs six pockets by six cushions rather than that times fourteen.
+     *
+     * @param {Object} opts  {onEight, bank, kick, maxCut}
+     * @return {Array} candidates, each `kind` 'direct', 'bank' or 'kick'
+     */
+    function shortlist(world, legal, opts) {
+        opts = opts || {};
+
+        function direct() {
+            return candidates(world, legal, opts.maxCut).map(function (c) {
+                c.kind = 'direct';
+                return c;
+            });
+        }
+
+        if (!opts.onEight || (!opts.bank && !opts.kick)) return direct();
+
+        // Both rules at once wants a cushion at each end - the cue ball off one
+        // on the way out and the 8 off another on the way in. One mirror
+        // cannot describe that, and a double reflection is a different search,
+        // so it is not offered rather than being offered wrongly.
+        if (opts.bank && opts.kick) return [];
+
+        return cushionShots(world, legal, opts.bank ? 'bank' : 'kick', opts.maxCut);
+    }
+
     return {ghost: ghost, clear: clear, blocker: blocker, candidates: candidates,
-        mirror: mirror, meets: meets, cushionShots: cushionShots};
+        mirror: mirror, meets: meets, cushionShots: cushionShots,
+        shortlist: shortlist};
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Geometry;
