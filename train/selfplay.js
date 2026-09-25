@@ -13,6 +13,7 @@
  */
 var Match = require('./match.js');
 var Bot = require('./bot.js');
+var Rules = require('../rules.js');
 
 function arg(name, fallback) {
     var i = process.argv.indexOf('--' + name);
@@ -61,6 +62,13 @@ async function ready(specs) {
         loaded[dir] = await Value.loadModel(dir);
     }
 }
+
+// Which rules the match is played under. A model trained on one set has to
+// be judged under that set: a house rule changes what the endgame is worth,
+// so scoring it on standard games measures the wrong thing.
+var house = String(arg('house', '') || '').toLowerCase().split(',').filter(Boolean);
+Rules.options.blackBank = house.indexOf('blackbank') >= 0;
+Rules.options.blackKick = house.indexOf('blackkick') >= 0;
 
 var games = +arg('games', 20);
 var verbose = !!arg('verbose', false);
