@@ -1365,6 +1365,17 @@
     }
 
     function tick(now) {
+        // Real elapsed time, which is what keeps play responsive - and which
+        // also means the physics is not reproducible frame for frame. A hitch
+        // longer than the cap throws simulated time away, so the same shot
+        // takes a different number of steps on a busy machine and finishes
+        // somewhere slightly else.
+        //
+        // Counting frames instead would fix that, and was tried: it makes a
+        // slow machine play in slow motion, because simulated time then runs
+        // at whatever rate the frames do. That is a bad trade for a game, so
+        // the clock stays and a saved game carries its own answers - see
+        // `note` below, which records where the balls actually finished.
         var dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
         last = now;
         dt *= state.timeScale * paceScale();   // 1 is real time; lower is slower
@@ -1377,6 +1388,7 @@
         if (dt > 0) {
             trackEvents(world.step(dt));
             if (state.phase === 'rolling' && world.atRest()) {
+                noteOutcome();
                 resolveShot();
                 if (aiPlays(state.player)) pause(AFTER_SHOT);
                 updateHud();
@@ -1888,6 +1900,26 @@
         log.shots.push(entry);
     }
 
+    /**
+     * Where the balls finished, written down after the table settles.
+     *
+     * Re-simulating a shot will not land on the same millimetre - live play is
+     * driven by the clock, so a busy frame changes how many steps a shot took.
+     * Rather than pretend otherwise, each shot carries its own outcome: a
+     * replay rolls the balls for the look of it and then puts them exactly
+     * where they were, so what you watch is what happened rather than
+     * something very like it. It is also the whole diagnosis on its own, for a
+     * game sent in without anybody running it.
+     */
+    function noteOutcome() {
+        if (!log || replaying || !log.shots.length) return;
+        var last = log.shots[log.shots.length - 1];
+        if (last.place) return;                   // a placement settles nothing
+        last.after = world.balls.map(function (b) {
+            return b.active ? [b.id, b.x, b.y] : [b.id, null, null];
+        });
+    }
+
     function gameLog() {
         if (log) log.seats = state.seats.slice();
         return log;
@@ -1936,6 +1968,17 @@
         replaying = true;
         state.seats = ['human', 'human'];
 
+        /** Put the table exactly where the recording says it ended up. */
+        function restore(after) {
+            if (!after) return;
+            after.forEach(function (row) {
+                var ball = world.ball(row[0]);
+                if (!ball) return;
+                if (row[1] === null) { if (ball.active) ball.lift(); }
+                else ball.placeAt(row[1], row[2]);
+            });
+        }
+
         var at = 0;
         (function next() {
             if (!replaying || at >= saved.shots.length) {
@@ -1959,6 +2002,7 @@
             var waiting = window.setInterval(function () {
                 if (state.phase === 'rolling') return;
                 window.clearInterval(waiting);
+                restore(entry.after);
                 window.setTimeout(next, 500);
             }, 60);
         })();
