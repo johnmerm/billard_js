@@ -29,9 +29,15 @@ pinned, and the branch name in amber when it is not. Neither can drift from
 what is actually loaded, because neither is written down anywhere.
 
 The page cannot carry its own commit id: writing a hash into a file changes the
-file, which changes the hash. So **tag each shipped build** — `git tag v<n>` on
-the commit that bumps `?v=` to `<n>`, and push it — and `build 41` in the corner
-resolves with `git rev-parse v41`.
+file, which changes the hash. The commit-pinned url is the identity instead —
+it names the commit exactly, and the corner echoes it back.
+
+Tagging each build (`git tag v<n>` on the commit that bumps `?v=` to `<n>`)
+makes the number in the corner resolvable with `git rev-parse v41`, which is
+worth having. Note that a session working on this repo may not be able to push
+one: the credential is scoped to `claude/*` branch refs, and a tag push comes
+back 403 even when the branch push just succeeded. So that step belongs to
+whoever has full push rights.
 
 When a fix looks like it did not work, check the build before checking the fix.
 A stale page asking for stale scripts looks exactly like a fix that does
