@@ -23,6 +23,21 @@
 var LLM = (function () {
     'use strict';
 
+    /**
+     * Which build this is, read off this script's own cache tag.
+     *
+     * A page served from a cdn with no tag of its own can hand back an old
+     * copy that then asks for old scripts, and the symptom is a fix that
+     * plainly does not work. Taking it from `?v=` rather than writing it down
+     * keeps it true without anyone having to remember to change it.
+     */
+    var BUILD = (function () {
+        var me = typeof document !== 'undefined' && document.currentScript &&
+            document.currentScript.src;
+        var tag = me && me.match(/[?&]v=([^&]+)/);
+        return tag ? tag[1] : 'untagged';
+    })();
+
     var TIMEOUT = 90000;         // a turn that has not answered by now never will
     var DEFAULT_CAP = 2.00;      // dollars, per page load: a game that plays
 
@@ -272,7 +287,8 @@ var LLM = (function () {
             '.said{color:#ffe2b0;margin:0 0 8px}.meta{color:#6f7f93}' +
             '.err{color:#ff9d9d}#cost{position:sticky;top:0;background:#12161c;' +
             'padding:6px 0;border-bottom:1px solid #253040;color:#9fb0c6}</style>' +
-            '<div id="cost">no spend yet</div><div id="feed"></div>');
+            '<div id="cost">no spend yet</div>' +
+            '<div class="meta">build ' + BUILD + '</div><div id="feed"></div>');
         log.document.close();
         return log;
     }
@@ -289,8 +305,8 @@ var LLM = (function () {
         log.scrollTo(0, log.document.body.scrollHeight);
 
         var meter = log.document.getElementById('cost');
-        if (meter) meter.textContent = 'spent so far: $' + spent.toFixed(4) +
-            ' of the $' + cap.toFixed(2) + ' cap';
+        if (meter) meter.textContent = 'build ' + BUILD + ' \u2014 spent so far: $' +
+            spent.toFixed(4) + ' of the $' + cap.toFixed(2) + ' cap';
     }
 
     function escape(s) {
@@ -951,6 +967,7 @@ var LLM = (function () {
     }
 
     return {
+        build: BUILD,
         configure: configure, release: release, name: name, think: think,
         busy: busy, cost: cost, openLog: openLog,
         cap: function () { return cap; }
