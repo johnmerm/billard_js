@@ -93,13 +93,30 @@ var LLM = (function () {
                         {role: 'user', content: prompt}
                     ]
                 };
-                if (variant) out.max_completion_tokens = 4000;
-                else out.max_tokens = 4000;
+                // 16000, not 4000: on a model that reasons before answering,
+                // the reasoning is spent out of this same budget, and a model
+                // that thinks its way through the whole of it returns nothing
+                // at all. Answering costs a few hundred; the rest is headroom.
+                if (variant) out.max_completion_tokens = 16000;
+                else out.max_tokens = 16000;
                 return out;
             },
             answer: function (data) {
                 var choice = (data.choices || [])[0];
-                return choice && choice.message && choice.message.content;
+                var body = choice && choice.message && choice.message.content;
+                // content is a string on most of these, and a list of parts on
+                // some. Both mean the same thing and neither is worth failing
+                // over, so flatten and move on.
+                if (Array.isArray(body)) {
+                    body = body.map(function (part) {
+                        return typeof part === 'string' ? part : (part && part.text) || '';
+                    }).join('');
+                }
+                return body;
+            },
+            finish: function (data) {
+                var choice = (data.choices || [])[0];
+                return choice && choice.finish_reason;
             },
             usage: function (data) {
                 var u = data.usage || {};
@@ -132,7 +149,7 @@ var LLM = (function () {
             body: function (cfg, system, prompt) {
                 return {
                     model: cfg.model,
-                    max_tokens: 4000,
+                    max_tokens: 16000,
                     system: system,
                     messages: [{role: 'user', content: prompt}],
                     output_config: {
@@ -141,6 +158,7 @@ var LLM = (function () {
                     }
                 };
             },
+            finish: function (data) { return data.stop_reason; },
             answer: function (data) {
                 if (data.stop_reason === 'refusal') return null;
                 var text = '';
@@ -386,17 +404,26 @@ var LLM = (function () {
     var probed = {};                   // provider id -> what it said
     var networkSeen = false;
 
-    function probe(id) {
+    function probe(id, key) {
         if (probed[id]) return Promise.resolve(probed[id]);
 
         var p = PROVIDERS[id];
         var stop = new AbortController();
         var timer = window.setTimeout(function () { stop.abort(); }, 10000);
 
-        return window.fetch(p.url, {
-            method: 'POST',
-            headers: p.headers('not-a-key'),
-            body: '{}',
+        // The model list, not the completions endpoint, and a GET rather than
+        // a POST. Both carry the same signal - the headers are non-simple
+        // either way, so a provider that refuses browsers refuses this too -
+        // but a probe aimed at the endpoint the game itself uses shows up in
+        // devtools as a failed shot with a bogus key in it, and reads as the
+        // page having lost your key. Nobody should have to work that out.
+        //
+        // Real key when there is one, so the usual case leaves no odd request
+        // behind at all; a placeholder that says what it is when there is not.
+        return window.fetch(p.modelsUrl || p.url, {
+            method: p.modelsUrl ? 'GET' : 'POST',
+            headers: p.headers(key || 'reachability-probe-no-key-yet'),
+            body: p.modelsUrl ? undefined : '{}',
             signal: stop.signal
         }).then(function (res) {
             networkSeen = true;
@@ -627,6 +654,13 @@ var LLM = (function () {
             });
         }
 
+        // Blur alone was not enough: a key pasted and left sitting there
+        // showed nothing until you clicked away, which reads as broken.
+        var typing = 0;
+        el('llmkey').oninput = function () {
+            window.clearTimeout(typing);
+            typing = window.setTimeout(fillModels, 600);
+        };
         el('llmkey').onchange = fillModels;
         el('llmkey').onblur = fillModels;
 
@@ -642,7 +676,7 @@ var LLM = (function () {
                 p.label + ' takes calls from a browser\u2026';
             note.className = 'note' + (probed[id] && !probed[id].ok ? ' bad' : '');
 
-            probe(id).then(function (said) {
+            probe(id, el('llmkey').value.trim()).then(function (said) {
                 if (choose.value !== id) return;          // they moved on
                 note.textContent = said.text;
                 note.className = 'note' + (said.ok ? '' : ' bad');
@@ -703,7 +737,9 @@ var LLM = (function () {
 
         veil.classList.add('open');
         recall().then(function (held) {
-            if (held && !el('llmkey').value) el('llmkey').value = held;
+            if (!held || el('llmkey').value) return;
+            el('llmkey').value = held;
+            fillModels();               // a stored key is still a key to ask with
         });
         el('llmkey').focus();
     }
@@ -785,9 +821,10 @@ var LLM = (function () {
             var u = provider.usage(data);
             spent += (u.inp * cfg.priceIn + u.out * cfg.priceOut) / 1e6;
 
-            var answer = parse(provider.answer(data));
+            var text = provider.answer(data);
+            var answer = parse(text);
             if (!answer) {
-                say(player, 'err', 'No usable answer came back.');
+                say(player, 'err', unusable(provider, data, text, u));
                 return null;
             }
             say(player, 'said', escape(answer.reason || '') +
@@ -840,6 +877,35 @@ var LLM = (function () {
             if (PROVIDERS[id] === provider) found = id;
         });
         return found;
+    }
+
+    /**
+     * Why a reply could not be used.
+     *
+     * "No usable answer" was true and useless. What is worth knowing is
+     * whether anything came back at all, why the model stopped, and what it
+     * said instead - a model that reasons its way through the whole token
+     * budget returns an empty string and a stop reason that says so, which
+     * looks identical to a parse failure until you print both.
+     */
+    function unusable(provider, data, text, u) {
+        var why = provider.finish ? provider.finish(data) : null;
+        var out = [];
+
+        if (!text) {
+            out.push('The reply had no text in it' + (why ? ' (stopped: ' + why + ')' : '') + '.');
+            if (why === 'length' || why === 'max_tokens') {
+                out.push('It used the whole token budget before answering \u2014 a ' +
+                    'reasoning model spends this budget thinking. Try a model ' +
+                    'that answers directly.');
+            }
+        } else {
+            out.push('The reply had no json in it' + (why ? ' (stopped: ' + why + ')' : '') +
+                '. It said: \u201c' + escape(text.slice(0, 240)) +
+                (text.length > 240 ? '\u2026' : '') + '\u201d');
+        }
+        out.push('<span class="meta">' + Math.round(u.inp) + ' in, ' + u.out + ' out</span>');
+        return out.join(' ');
     }
 
     function busy(player) {

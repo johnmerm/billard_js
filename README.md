@@ -266,12 +266,17 @@ A provider has to send CORS headers or a page cannot call it at all, and the
 refusal reaches javascript as a bare `TypeError` with nothing in it. So the
 dialog asks, the moment you pick a provider and before you have typed anything.
 
-It needs no key. It sends the real request with one that is obviously not a
-key: a provider that allows browsers answers 401, which `fetch` resolves, and
-one that does not is refused before anything leaves the browser, which `fetch`
-rejects. An unauthenticated request costs nothing and bills nothing. The one
-ambiguity is that being offline rejects too, so the first provider that answers
-at all is remembered — after that, a rejection can only mean refused.
+It needs no key. It asks the model list, with the key if there is one and a
+placeholder that says what it is if there is not: a provider that allows
+browsers answers, which `fetch` resolves, and one that does not is refused
+before anything leaves the browser, which `fetch` rejects. The one ambiguity is
+that being offline rejects too, so the first provider that answers at all is
+remembered — after that, a rejection can only mean refused.
+
+It asks the *list* rather than the endpoint the game plays through, for a
+reason worth recording: aimed at the completions endpoint it looked, in
+devtools, exactly like a failed shot carrying a bogus key, and the obvious
+reading of that is that the page has lost yours.
 
     Claude takes calls from a browser (it answered 401 to a deliberately bad key).
     Grok refuses calls from a browser. Nothing on this page can change that —
