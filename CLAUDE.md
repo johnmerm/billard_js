@@ -10,23 +10,32 @@ changes.
 can hand back an old copy of the page that then asks for the old scripts. A
 query string on the page url is what gets past that.
 
-**So: after pushing a change, always hand back the full link with the
-cache-buster bumped**, not just the number:
+**So: after pushing a change, always hand back a link pinned to the commit**,
+not a branch link:
 
-    https://raw.githack.com/johnmerm/billard_js/<branch>/index.html?x=<n>
+    https://raw.githack.com/johnmerm/billard_js/<sha>/index.html?x=<n>
 
-`raw.githack.com` rather than `rawcdn.githack.com`: the cdn host caches a
-branch url hard and would pin an old build.
+A different commit is a different path, so a pinned url cannot go stale at all
+— which a branch url can, and did, costing two rounds of chasing a fix that was
+already in the file. `raw.githack.com` rather than `rawcdn.githack.com`: the cdn
+host caches harder still.
 
-A url pinned to a commit sha cannot go stale at all, since a different commit
-is a different path, so prefer one whenever it matters which build is running:
+## Saying which build is running
 
-    https://raw.githack.com/johnmerm/billard_js/<sha>/index.html
+The page prints it in the bottom left, as `build <v> · <ref>`, and
+`Billiards.build` reports it in the console. The `<v>` is this script's own
+`?v=` tag and the `<ref>` comes off the url — a commit id when the page is
+pinned, and the branch name in amber when it is not. Neither can drift from
+what is actually loaded, because neither is written down anywhere.
+
+The page cannot carry its own commit id: writing a hash into a file changes the
+file, which changes the hash. So **tag each shipped build** — `git tag v<n>` on
+the commit that bumps `?v=` to `<n>`, and push it — and `build 41` in the corner
+resolves with `git rev-parse v41`.
 
 When a fix looks like it did not work, check the build before checking the fix.
-The transcript window prints it, and `LLM.build` reports it in the console; both
-read it off this script's own `?v=` tag, so they cannot drift from the page. A
-stale page asking for stale scripts looks exactly like a fix that does nothing.
+A stale page asking for stale scripts looks exactly like a fix that does
+nothing.
 
 ## Tests
 

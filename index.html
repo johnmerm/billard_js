@@ -400,6 +400,20 @@
     #seatmenu b { display: block; font-size: 10px; letter-spacing: 0.08em;
         text-transform: uppercase; color: #8b9cb2; padding: 5px 9px 3px; }
 
+
+    /* Which build and which commit, small and always there. A fix that looks
+       like it did nothing is usually a page that is older than the fix, and
+       that is a question this should answer at a glance rather than by
+       counting tokens in a reply. */
+    #build {
+        position: fixed; left: 6px; bottom: 5px; z-index: 5;
+        font-size: 9px; letter-spacing: 0.05em;
+        color: #6f7f93; opacity: 0.6;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        pointer-events: none; white-space: nowrap;
+    }
+    #build.loose { color: #ffcf9a; }
+
     .seat {
         /* Taken out of the flow and parked at the end of the line: as a float
            it pushed the last ball chip onto a second row. */
@@ -697,23 +711,25 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=40"></script>
-    <script src="lib/three.js?v=40"></script>
-    <script src="lib/cannon-es.js?v=40"></script>
-    <script src="phys.js?v=40"></script>
-    <script src="rules.js?v=40"></script>
-    <script src="ball_skins.js?v=40"></script>
-    <script src="render.js?v=40"></script>
-    <script src="render2d.js?v=40"></script>
-    <script src="train/geometry.js?v=40"></script>
-    <script src="brief.js?v=40"></script>
-    <script src="train/match.js?v=40"></script>
-    <script src="train/bot.js?v=40"></script>
-    <script src="train/encode.js?v=40"></script>
-    <script src="train/player.js?v=40"></script>
-    <script src="ai.js?v=40"></script>
-    <script src="llm.js?v=40"></script>
-    <script src="game.js?v=40"></script>
+    <script src="panels.js?v=41"></script>
+    <script src="lib/three.js?v=41"></script>
+    <script src="lib/cannon-es.js?v=41"></script>
+    <script src="phys.js?v=41"></script>
+    <script src="rules.js?v=41"></script>
+    <script src="ball_skins.js?v=41"></script>
+    <script src="render.js?v=41"></script>
+    <script src="render2d.js?v=41"></script>
+    <script src="train/geometry.js?v=41"></script>
+    <script src="brief.js?v=41"></script>
+    <script src="train/match.js?v=41"></script>
+    <script src="train/bot.js?v=41"></script>
+    <script src="train/encode.js?v=41"></script>
+    <script src="train/player.js?v=41"></script>
+    <script src="ai.js?v=41"></script>
+    <script src="llm.js?v=41"></script>
+    <script src="game.js?v=41"></script>
+
+<div id="build"></div>
 
 <div id="seatmenu"></div>
 

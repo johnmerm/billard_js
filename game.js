@@ -1250,6 +1250,7 @@
                 }
             }
         }
+        showBuild();
         window.requestAnimationFrame(frame);
     }
 
@@ -1719,7 +1720,49 @@
         });
     }
 
+    /* ------------------------------------------------------------------ *
+     * which build this is
+     *
+     * Read off the page's own url and this script's own cache tag, so neither
+     * can drift from what is actually running. A commit id in the path means
+     * the page is pinned and cannot change under anyone; a branch name means
+     * it is whatever was last pushed, and is worth saying out loud.
+     * ------------------------------------------------------------------ */
+
+    var BUILD = (function () {
+        var me = document.currentScript && document.currentScript.src;
+        var tag = me && me.match(/[?&]v=([^&]+)/);
+        return tag ? tag[1] : 'untagged';
+    })();
+
+    /** The git ref this page was served from, if the url carries one. */
+    function servedFrom() {
+        var bits = window.location.pathname.split('/').filter(Boolean);
+        if (bits.length < 3) return null;                 // not a /user/repo/ref/ url
+        var ref = bits.slice(2, -1).join('/');
+        if (!ref) return null;
+        if (/^[0-9a-f]{7,40}$/.test(ref)) return {pinned: true, text: ref.slice(0, 7)};
+        // branch names are as long as somebody felt like making them
+        return {pinned: false, ref: ref,
+            text: ref.length > 22 ? ref.slice(0, 21) + '\u2026' : ref};
+    }
+
+    function showBuild() {
+        var el = document.getElementById('build');
+        if (!el) return;
+        var ref = servedFrom();
+        el.textContent = 'build ' + BUILD + (ref ? ' \u00b7 ' + ref.text : ' \u00b7 local');
+        el.className = ref && !ref.pinned ? 'loose' : '';
+        el.title = ref
+            ? (ref.pinned ? 'Pinned to a commit: this page cannot change.'
+                          : 'Served from the branch ' + ref.ref +
+                            ': this page is whatever was last pushed to it.')
+            : 'Served from your own machine.';
+    }
+
     window.Billiards = {
+        build: BUILD,
+        servedFrom: servedFrom,
         state: state,
         world: function () { return world; },
         newGame: newGame,
