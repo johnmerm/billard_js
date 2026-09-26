@@ -203,6 +203,36 @@
     }
 
     /**
+     * The big noise for a shot that has earned one.
+     *
+     * A page element rather than something drawn on the cloth: both renderers
+     * get it without either of them knowing about it, the animation is the
+     * browser's to run rather than the physics loop's, and a reader that only
+     * ever sees the dom can tell it happened.
+     */
+    function cheer(headline, line) {
+        var el = document.getElementById('cheer');
+        if (!el) return;
+        el.innerHTML = '';
+
+        var big = document.createElement('div');
+        big.className = 'big';
+        big.textContent = headline;
+        var small = document.createElement('div');
+        small.className = 'small';
+        small.textContent = line || '';
+        el.appendChild(big);
+        el.appendChild(small);
+
+        // restart the animation rather than waiting out the old one: two of
+        // these in a row should both be seen
+        el.classList.remove('go');
+        void el.offsetWidth;
+        el.classList.add('go');
+        Sound.fanfare();
+    }
+
+    /**
      * Apply what the rulebook made of the shot. `Rules.resolve` decides; this
      * moves the game's own state to match and says it out loud.
      */
@@ -227,6 +257,10 @@
 
         if (out.gameOver) {
             state.phase = 'over';
+            if (out.flourish) {
+                cheer('KICK & BANK!', 'Off a cushion onto the 8, off ' +
+                    'another into the pocket \u2014 and that is the game.');
+            }
             if (log) log.result = {winner: out.gameOver.winner, why: out.gameOver.why};
             return;
         }
@@ -1330,6 +1364,15 @@
                 blip(180 + Math.min(speed, 3) * 40, 0.025 * Math.min(speed, 3), 0.1, 'sawtooth');
             },
             pot: function () { blip(120, 0.14, 0.22, 'square'); },
+            /** For the shot that deserves more than a pot's thud. */
+            fanfare: function () {
+                [0, 90, 180, 300].forEach(function (ms, i) {
+                    window.setTimeout(function () {
+                        blip([392, 523, 659, 784][i], 0.11, i === 3 ? 0.7 : 0.16,
+                            'triangle');
+                    }, ms);
+                });
+            },
             toggle: function () { on = !on; return on; }
         };
     })();
@@ -1959,9 +2002,7 @@
 
         // The rules go on before the rack, because the first thing the log
         // records is the rack that was played under them.
-        Object.keys(HOUSE).forEach(function (name) {
-            Rules.options[HOUSE[name]] = (saved.house || []).indexOf(name) >= 0;
-        });
+        setHouseRules(saved.house || []);
         showBuild();
 
         newGame(saved.order || undefined);
@@ -2044,14 +2085,31 @@
      * behind a control because it has to be agreed before anyone breaks, and
      * a link is how you agree it.
      */
-    var HOUSE = {blackbank: 'blackBank', blackkick: 'blackKick'};
+    var HOUSE = {blackcushion: 'blackCushion'};
+
+    /* It was two rules for a while - one wanting the 8 banked in, one wanting
+     * the cue ball to kick first - before they became one rule that either
+     * cushion satisfies. Links and saved games naming the old ones are asking
+     * for that, so they still land somewhere. */
+    var HOUSE_WAS = {blackbank: 'blackcushion', blackkick: 'blackcushion'};
+
+    function houseNames(asked) {
+        return (asked || []).map(function (n) {
+            n = String(n).trim().toLowerCase();
+            return HOUSE_WAS[n] || n;
+        });
+    }
+
+    function setHouseRules(asked) {
+        var names = houseNames(asked);
+        Object.keys(HOUSE).forEach(function (name) {
+            Rules.options[HOUSE[name]] = names.indexOf(name) >= 0;
+        });
+    }
 
     function readHouseRules() {
-        var asked = ((window.location.search.match(/[?&]house=([^&]*)/) || [])[1] || '')
-            .toLowerCase().split(',');
-        Object.keys(HOUSE).forEach(function (name) {
-            Rules.options[HOUSE[name]] = asked.indexOf(name) >= 0;
-        });
+        setHouseRules(((window.location.search.match(/[?&]house=([^&]*)/) || [])[1] || '')
+            .split(','));
     }
 
     /** Which are on now - not the same question as what the url asked for,
@@ -2085,7 +2143,7 @@
         replay: replay,
         /** Turn a house rule on or off mid-game, for trying one out. */
         houseRule: function (name, on) {
-            var key = HOUSE[String(name).toLowerCase()];
+            var key = HOUSE[houseNames([name])[0]];
             if (key) Rules.options[key] = !!on;
             showBuild();
             return Rules.options;

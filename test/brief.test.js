@@ -75,7 +75,7 @@ var text = Brief.describe(straight, position({
 }));
 
 check('a straight pot leads the list',
-    /^\[1\] 1\s+into \(112,0\)\s+cut 0deg/.test(potLines(text)[0]),
+    /^\[1\]\s+1\s+into \(112,0\)\s+cut 0deg/.test(potLines(text)[0]),
     potLines(text)[0]);
 
 check('the cue ball position is reported where it stands',
@@ -85,7 +85,7 @@ check('a pocket the cue ball cannot reach round to is left out of Not on',
     notOn(text).indexOf('wrong side') < 0, notOn(text));
 
 check('every pot offered names a ball the player is allowed to hit',
-    potLines(text).every(function (l) { return /^\[\d+\] 1\s/.test(l); }),
+    potLines(text).every(function (l) { return /^\[\d+\]\s+1\s/.test(l); }),
     potLines(text).join(' | '));
 
 /* ------------------------------------------------------------------ */
@@ -143,7 +143,7 @@ check('a player with nothing left is told the 8 wins it',
     /the 8 wins it/.test(eightText), eightText.split('\n')[1]);
 
 check('and is offered the 8 as a pot',
-    /^\[1\] 8\s+into \(112,0\)/.test(potLines(eightText)[0]),
+    /^\[1\]\s+8\s+into \(112,0\)/.test(potLines(eightText)[0]),
     potLines(eightText)[0]);
 
 // The same table read from the other chair: the opponent is on the 8, which is

@@ -25,14 +25,14 @@ var Rules = (function () {
      * not to be.
      */
     var options = {
-        // Two separate house rules, not one either-or, and each is its own
-        // game. The bank rule is about where the 8 goes: it has to come off a
-        // cushion on the way in, so sinking it straight loses. The kick rule
-        // is about how you may address it: you may not aim at it directly, so
-        // the cue ball has to come off a cushion before it touches it. Both at
-        // once is legal, and needs a cushion at each end.
-        blackBank: false,
-        blackKick: false
+        // One rule about the shot that wins a game, satisfied two ways: the
+        // cue ball off a cushion before it touches the 8 (a kick), or the 8
+        // off a cushion before it drops (a bank). Either will do - the point
+        // of the rule is that a game may not end on a ball rolled straight
+        // from the cue into a pocket, not that it must end on one particular
+        // shot. Doing both in the same shot is not asked for; it is a
+        // flourish, and `resolve` says so when it happens.
+        blackCushion: false
     };
 
     /** Which half of the rack a ball belongs to; the cue ball and 8 are neither. */
@@ -146,6 +146,7 @@ var Rules = (function () {
             player: player,
             ballInHand: false,
             kitchenOnly: false,
+            flourish: false,           // won it kicking *and* banking
             message: ''
         };
 
@@ -163,18 +164,15 @@ var Rules = (function () {
             out.foul = 'No ball potted and nothing reached a cushion.';
         }
 
-        // The house rules on the black, off unless asked for. The kick rule
-        // judges the shot whether or not the 8 drops, because it is about how
-        // you were allowed to address it; the bank rule only bites when the 8
-        // actually goes in, because it is about where it went.
-        if (!out.foul && options.blackKick && target === 'eight' &&
-                shot.first === 8 && !shot.cueRailFirst) {
-            out.foul = 'House rule: the cue ball has to come off a cushion ' +
-                'before it touches the 8.';
-        }
-        if (!out.foul && options.blackBank && target === 'eight' &&
-                eight && !shot.eightRail) {
-            out.foul = 'House rule: the 8 has to come off a cushion before it drops.';
+        // The house rule on the black, off unless asked for. It judges the
+        // shot that finishes the game and nothing else: a safety played off
+        // the 8 is still a safety, and only the ball that actually drops has
+        // to have come by way of a cushion.
+        if (!out.foul && options.blackCushion && target === 'eight' && eight &&
+                !shot.cueRailFirst && !shot.eightRail) {
+            out.foul = 'House rule: a cushion has to come into the shot that ' +
+                'wins it \u2014 off the cue ball before it touches the 8, or ' +
+                'off the 8 before it drops.';
         }
         if (scratch) out.foul = out.foul || 'Scratch - the cue ball went down.';
 
@@ -188,14 +186,25 @@ var Rules = (function () {
         // otherwise the 8 ball ends the game one way or the other
         if (eight) {
             var cleared = pos.groups[player] && remaining(world, pos.groups[player]) === 0;
-            out.gameOver = (cleared && !out.foul && !scratch)
+            var won = cleared && !out.foul && !scratch;
+            out.gameOver = won
                 ? {winner: player, why: 'potted the 8 ball to win'}
                 : {winner: 1 - player, why: 'wins: the 8 ball went down early'};
+
+            // Both cushions in the shot that won it. The house rule asks for
+            // one of them; a player who takes both has played the shot the
+            // rule is really describing, and that is worth a noise about. It
+            // is a feat under the standard game too, so it is not conditional
+            // on the rule being on.
+            out.flourish = !!(won && shot.cueRailFirst && shot.eightRail);
             // The foul is why they lost, and the game over line was throwing
             // it away - so the one shot that ends a game was the one shot that
             // did not say what was wrong with it.
             out.message = 'Player ' + (out.gameOver.winner + 1) + ' ' +
-                out.gameOver.why + '.' + (out.foul ? ' ' + out.foul : '') +
+                out.gameOver.why + '.' +
+                (out.flourish ? ' Off a cushion onto the 8 and off another ' +
+                    'into the pocket \u2014 kick and bank in one shot!' : '') +
+                (out.foul ? ' ' + out.foul : '') +
                 ' Press R for a new rack.';
             return out;
         }
@@ -274,7 +283,7 @@ var Rules = (function () {
     /**
      * What the shortlist has to satisfy for this player right now.
      *
-     * The house rules on the black apply only when the black is what you are
+     * The house rule on the black applies only when the black is what you are
      * on, so this is where "which rules are in force" becomes "what shape of
      * shot is legal", once, rather than in each caller.
      */
@@ -282,8 +291,7 @@ var Rules = (function () {
         var onEight = legalTarget(world, groups, player) === 'eight';
         return {
             onEight: onEight,
-            bank: onEight && !!options.blackBank,
-            kick: onEight && !!options.blackKick
+            cushion: onEight && !!options.blackCushion
         };
     }
 

@@ -206,24 +206,35 @@ one until it is asked not to be:
 
 | rule | what it does |
 |---|---|
-| `blackbank` | the 8 has to come off a cushion before it drops — sink it straight in and you lose |
-| `blackkick` | the cue ball has to come off a cushion before it touches the 8 — you may not aim at it directly |
+| `blackcushion` | a cushion has to come into the shot that wins the game |
 
-These are two different games, not one rule worded twice. The bank rule is
-about *where the 8 went*, so it only bites when the 8 actually drops and a
-legal miss stays a legal miss. The kick rule is about *how you were allowed to
-address it*, so it judges the shot whether or not the 8 goes in. Both at once
-is legal, and needs a cushion at each end.
+One rule, satisfied two ways: the cue ball off a cushion before it touches the
+8 (a *kick*), or the 8 off a cushion before it drops (a *bank*). Either will
+do. The point of the rule is that a game may not end on a ball rolled straight
+from the cue into a pocket, not that it has to end on one particular shot.
 
-Turn them on with `?house=blackbank`, `?house=blackkick` or both comma
-separated, which is where they belong: a house rule has to be agreed before
-anybody breaks, and a link is how you agree it. The corner marker names the
-ones in force, and `Billiards.houseRule('blackbank', true)` flips one mid-game
-for trying it out.
+It judges the shot that finishes the game and nothing else. A safety played
+off the 8 is still a safety — only the ball that actually drops has to have
+come by way of a cushion — and the rule says nothing at all about any other
+ball on the table.
 
-Neither is in the WPA or blackball rulebooks — they are house rules, widespread
-enough to have names. The codified requirement those *do* put on the 8 is
-calling the pocket, which this does not implement.
+Doing both in the same shot is not asked for. It is a flourish, and the game
+notices: `Rules.resolve` returns `flourish: true` when the winning shot kicked
+*and* banked, and the page says so in letters far too big for the occasion,
+with a noise to match. That one is not conditional on the rule being on — it
+is a feat under the standard game too.
+
+Turn it on with `?house=blackcushion`, which is where it belongs: a house rule
+has to be agreed before anybody breaks, and a link is how you agree it. The
+corner marker names the rules in force, and
+`Billiards.houseRule('blackcushion', true)` flips it mid-game for trying it
+out. The rule was two separate ones for a while — `blackbank` and `blackkick`,
+each demanding its own cushion — so links and saved games naming either of
+those still land on this one.
+
+It is not in the WPA or blackball rulebooks — it is a house rule, widespread
+enough to have names for both halves of it. The codified requirement those *do*
+put on the 8 is calling the pocket, which this does not implement.
 
 ## One rulebook
 
@@ -533,6 +544,12 @@ a static file like everything else.
 ### Retraining for a house rule, and why there is no model for one
 
 There isn't one, and the attempt is worth recording rather than repeating.
+
+These measurements were taken while the house rule was two: `blackbank`, which
+demanded the 8 be banked in, and `blackkick`, which demanded the cue ball kick
+first. Both of those are strictly harder than the one rule that replaced them —
+either cushion satisfies it now — so the numbers below are a lower bound on how
+the endgame goes today rather than a reading of it.
 
 Wiring the cushion shots in fixed the house rules on its own. The baseline bot
 went from 0 wins in 40 under `blackkick` to 29, and from 16 to 28 under

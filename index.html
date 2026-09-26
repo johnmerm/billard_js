@@ -417,6 +417,67 @@
         text-transform: uppercase; color: #8b9cb2; padding: 5px 9px 3px; }
 
 
+    /* ------------------------------------------------- the big noise
+
+       A shot that satisfies the house rule at both ends - the cue ball off a
+       cushion onto the 8, the 8 off another into the pocket - is rare enough
+       that the status line saying so in grey is not enough. It sits over
+       everything, takes no clicks, and gets out of the way on its own. */
+    #cheer {
+        position: fixed;
+        left: 50%;
+        top: 38%;
+        transform: translate(-50%, -50%);
+        z-index: 55;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        /* wide enough that the headline keeps to one line on a desktop, and
+           narrow enough that it wraps rather than runs off a phone */
+        width: min(92vw, 760px);
+    }
+
+    #cheer .big {
+        font-size: clamp(30px, 9vw, 74px);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        line-height: 1.05;
+        background: linear-gradient(#fff3c4, #ffc93c 55%, #ff8a3d);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        /* the glow has to be painted behind the clipped text, not on it */
+        filter: drop-shadow(0 0 18px rgba(255, 190, 60, 0.75))
+                drop-shadow(0 4px 10px rgba(0, 0, 0, 0.8));
+    }
+
+    #cheer .small {
+        margin: 8px auto 0;
+        max-width: 26em;
+        font-size: clamp(11px, 2.4vw, 15px);
+        color: #ffe9b8;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+    }
+
+    #cheer.go { animation: cheer 3.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    @keyframes cheer {
+        0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-4deg); }
+        9%   { opacity: 1; transform: translate(-50%, -50%) scale(1.14) rotate(1.5deg); }
+        16%  { transform: translate(-50%, -50%) scale(0.97) rotate(-1deg); }
+        24%  { transform: translate(-50%, -50%) scale(1.03) rotate(0deg); }
+        76%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+        100% { opacity: 0; transform: translate(-50%, -52%) scale(1.06) rotate(0deg); }
+    }
+
+    /* Still said, still leaves: it just stops leaping about. */
+    @media (prefers-reduced-motion: reduce) {
+        #cheer.go { animation: cheerquiet 3.4s linear forwards; }
+        @keyframes cheerquiet {
+            0% { opacity: 0; } 8%, 80% { opacity: 1; } 100% { opacity: 0; }
+        }
+    }
+
     /* Which build and which commit, small and always there. A fix that looks
        like it did nothing is usually a page that is older than the fix, and
        that is a question this should answer at a glance rather than by
@@ -729,23 +790,25 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=52"></script>
-    <script src="lib/three.js?v=52"></script>
-    <script src="lib/cannon-es.js?v=52"></script>
-    <script src="phys.js?v=52"></script>
-    <script src="rules.js?v=52"></script>
-    <script src="ball_skins.js?v=52"></script>
-    <script src="render.js?v=52"></script>
-    <script src="render2d.js?v=52"></script>
-    <script src="train/geometry.js?v=52"></script>
-    <script src="brief.js?v=52"></script>
-    <script src="train/match.js?v=52"></script>
-    <script src="train/bot.js?v=52"></script>
-    <script src="train/encode.js?v=52"></script>
-    <script src="train/player.js?v=52"></script>
-    <script src="ai.js?v=52"></script>
-    <script src="llm.js?v=52"></script>
-    <script src="game.js?v=52"></script>
+    <script src="panels.js?v=53"></script>
+    <script src="lib/three.js?v=53"></script>
+    <script src="lib/cannon-es.js?v=53"></script>
+    <script src="phys.js?v=53"></script>
+    <script src="rules.js?v=53"></script>
+    <script src="ball_skins.js?v=53"></script>
+    <script src="render.js?v=53"></script>
+    <script src="render2d.js?v=53"></script>
+    <script src="train/geometry.js?v=53"></script>
+    <script src="brief.js?v=53"></script>
+    <script src="train/match.js?v=53"></script>
+    <script src="train/bot.js?v=53"></script>
+    <script src="train/encode.js?v=53"></script>
+    <script src="train/player.js?v=53"></script>
+    <script src="ai.js?v=53"></script>
+    <script src="llm.js?v=53"></script>
+    <script src="game.js?v=53"></script>
+
+<div id="cheer" aria-live="polite"></div>
 
 <div id="build"></div>
 

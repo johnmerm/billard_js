@@ -187,6 +187,7 @@ function playGame(players, opts) {
 
         if (out.gameOver) {
             return {winner: out.gameOver.winner, why: out.gameOver.why,
+                flourish: !!out.flourish,
                 shots: n + 1, fouls: fouls, pots: pots, log: log, seconds: seconds};
         }
         apply(world, pos, out);

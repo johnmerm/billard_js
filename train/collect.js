@@ -123,8 +123,7 @@ if (process.env.BILLIARDS_SHARD) {
         // Before a single rack: the rules decide what the shortlist offers and
         // what the endgame is worth, so a worker that starts playing first is
         // collecting the wrong game.
-        Rules.options.blackBank = (job.house || []).indexOf('blackbank') >= 0;
-        Rules.options.blackKick = (job.house || []).indexOf('blackkick') >= 0;
+        Rules.options.blackCushion = (job.house || []).indexOf('blackcushion') >= 0;
 
         if (job.player) job.model = await require('./value.js').loadModel(job.player);
 

@@ -131,8 +131,8 @@ var Geometry = (function () {
      * A bank is the same shot as a direct pot, aimed at the pocket's
      * reflection: send the ball at where the pocket would be if the cushion
      * were a mirror and it arrives at the real one. Same for a kick, with the
-     * cue ball mirrored instead, which is the shot the house rules on the
-     * black ask for and the direct shortlist cannot describe at all.
+     * cue ball mirrored instead. Either one finishes a game under the house
+     * rule on the black, and the direct shortlist cannot describe either.
      *
      * The mirror is where the aim comes from, not where it ends: a cushion has
      * a restitution under one and takes speed out of the ball, so the rebound
@@ -245,33 +245,35 @@ var Geometry = (function () {
      * The shots a player may actually take, house rules included.
      *
      * Direct pots are the whole of it under the standard game, and they stay
-     * the whole of it under a house rule too until the shooter is on the 8 -
-     * these rules say nothing about any other ball. That is what keeps this
+     * the whole of it under the house rule too until the shooter is on the 8 -
+     * the rule says nothing about any other ball. That is what keeps this
      * cheap: the cushion search only ever runs when exactly one ball is legal,
      * so it costs six pockets by six cushions rather than that times fourteen.
      *
-     * @param {Object} opts  {onEight, bank, kick, maxCut}
+     * On the 8 with the rule in force, a bank and a kick are both legal
+     * finishes, so both are offered and sorted together on cut angle: the
+     * straightest way to end the game, whichever end the cushion comes at.
+     * A shot that is both at once would satisfy it twice over and is worth
+     * more than either, but it needs a reflection at each end and this search
+     * is one deep, so it is left to be stumbled upon rather than aimed at.
+     *
+     * @param {Object} opts  {onEight, cushion, maxCut}
      * @return {Array} candidates, each `kind` 'direct', 'bank' or 'kick'
      */
     function shortlist(world, legal, opts) {
         opts = opts || {};
 
-        function direct() {
+        if (!opts.onEight || !opts.cushion) {
             return candidates(world, legal, opts.maxCut).map(function (c) {
                 c.kind = 'direct';
                 return c;
             });
         }
 
-        if (!opts.onEight || (!opts.bank && !opts.kick)) return direct();
-
-        // Both rules at once wants a cushion at each end - the cue ball off one
-        // on the way out and the 8 off another on the way in. One mirror
-        // cannot describe that, and a double reflection is a different search,
-        // so it is not offered rather than being offered wrongly.
-        if (opts.bank && opts.kick) return [];
-
-        return cushionShots(world, legal, opts.bank ? 'bank' : 'kick', opts.maxCut);
+        var out = cushionShots(world, legal, 'bank', opts.maxCut)
+            .concat(cushionShots(world, legal, 'kick', opts.maxCut));
+        out.sort(function (a, b) { return a.cut - b.cut; });
+        return out;
     }
 
     return {ghost: ghost, clear: clear, blocker: blocker, candidates: candidates,

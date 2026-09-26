@@ -222,6 +222,41 @@ if (kicks.length) {
 /* ------------------------------------------------------------------ */
 
 console.log('');
+console.log('what the shortlist offers on the black');
+
+var sw = table();
+var sc = new Phys.Ball(0, 0, 0), sb = new Phys.Ball(8, 0, 0);
+sw.add(sc); sw.add(sb);
+sc.placeAt(0.5, 0.56); sb.placeAt(1.5, 0.56);
+
+var plain = Geometry.shortlist(sw, [sb], {onEight: true, cushion: false});
+check('with the rule off it is the direct pots', plain.length > 0 &&
+    plain.every(function (c) { return c.kind === 'direct'; }),
+    plain.length + ' found');
+
+var house = Geometry.shortlist(sw, [sb], {onEight: true, cushion: true});
+var kinds = {};
+house.forEach(function (c) { kinds[c.kind] = (kinds[c.kind] || 0) + 1; });
+check('with it on there are no direct pots left', !kinds.direct, JSON.stringify(kinds));
+// Either cushion finishes a game under this rule, so a player must be shown
+// both: offering one kind was the bug that left the bot with no legal shot.
+check('and both kinds are on the list', kinds.bank > 0 && kinds.kick > 0,
+    JSON.stringify(kinds));
+check('straightest first, across both kinds', house.every(function (c, i) {
+    return i === 0 || c.cut >= house[i - 1].cut;
+}));
+
+// The rule is about the black and nothing else, so an ordinary ball is still
+// shot at directly however the house plays the endgame.
+var ob = sw.add(new Phys.Ball(3, 1.2, 0.3));
+var ordinary = Geometry.shortlist(sw, [ob], {onEight: false, cushion: true});
+check('it says nothing about any other ball', ordinary.length > 0 &&
+    ordinary.every(function (c) { return c.kind === 'direct'; }),
+    ordinary.length + ' found');
+
+/* ------------------------------------------------------------------ */
+
+console.log('');
 if (failures) {
     console.log(failures + ' check(s) failed');
     process.exit(1);
