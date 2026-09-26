@@ -286,6 +286,27 @@ check('and it is still a loss', early.gameOver && early.gameOver.winner === 1);
 
 Rules.options.blackCushion = false;
 
+/* Which cushion contacts count. A ball dropping into a corner touches the
+ * jaws, and often the last stretch of rail beside them, on its way down - and
+ * a ball that rattles its way in has not been played off a cushion. */
+function railed(events) {
+    var w = table([0, 8]);
+    var s = Rules.newShot(w, ['solids', 'stripes'], 0, true);
+    Rules.track(s, events);
+    return s;
+}
+
+var eightBall = table([0, 8]).ball(8);
+check('a cushion in the mouth of a pocket is not a bank',
+    !railed([{type: 'cushion', ball: eightBall, fromPocket: 2.5}]).eightRail);
+check('and not a kick either',
+    !railed([{type: 'cushion', ball: eightBall, fromPocket: 2.5}]).cueRailFirst);
+check('one out on the table is both',
+    railed([{type: 'cushion', ball: eightBall, fromPocket: 40}]).eightRail &&
+    railed([{type: 'cushion', ball: eightBall, fromPocket: 40}]).cueRailFirst);
+check('a cushion that says nothing about where it was counts',
+    railed([{type: 'cushion', ball: eightBall}]).eightRail);
+
 /* ------------------------------------------------------------------ */
 
 console.log('');

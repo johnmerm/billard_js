@@ -544,9 +544,26 @@
                     });
                 }
             } else if (other.isCushion) {
-                self.events.push({type: 'cushion', ball: ball, speed: speed, x: ball.x, y: ball.y});
+                // How far out it was, in ball radii, for rules that care
+                // whether a cushion was played off or merely rattled on the
+                // way into a pocket. The table knows where its pockets are
+                // and the rulebook does not, so the measurement belongs here
+                // and the threshold belongs there.
+                self.events.push({type: 'cushion', ball: ball, speed: speed,
+                    fromPocket: self.fromPocket(ball.x, ball.y) / self.radius,
+                    x: ball.x, y: ball.y});
             }
         });
+    };
+
+    /** Distance from (x, y) to the nearest pocket centre, in metres. */
+    Table.prototype.fromPocket = function (x, y) {
+        var best = Infinity;
+        for (var i = 0; i < this.pockets.length; i++) {
+            var p = this.pockets[i];
+            best = Math.min(best, Math.hypot(p.x - x, p.y - y));
+        }
+        return best;
     };
 
     Table.prototype.ball = function (id) {

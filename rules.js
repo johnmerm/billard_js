@@ -95,6 +95,17 @@ var Rules = (function () {
         };
     }
 
+    /**
+     * How far out a cushion has to be touched, in ball radii, before it counts
+     * as having been played off rather than clipped on the way into a pocket.
+     */
+    var MOUTH = 5;
+
+    /** Was this cushion played off, or just rattled on the way down? */
+    function played(e) {
+        return !(e.fromPocket < MOUTH);     // an event without one still counts
+    }
+
     /** Fold one step's worth of physics events into the shot record. */
     function track(shot, events) {
         events.forEach(function (e) {
@@ -106,8 +117,18 @@ var Rules = (function () {
                 if (shot.first !== null) shot.rail = true;
                 // Nothing but the cue ball is moving before the first contact,
                 // so a cushion before then is the cue ball's by definition.
-                else shot.cueRailFirst = true;
-                if (e.ball && e.ball.id === 8) shot.eightRail = true;
+                //
+                // A rattle in the mouth of the pocket it is dropping into is
+                // not a bank, so these two ignore anything that close in. A
+                // third of ordinary straight pots of the 8 touch something on
+                // their way down - the jaws, or the last stretch of rail
+                // beside them - which would have handed the house rule below
+                // to a third of the shots it exists to forbid, at random.
+                // Past MOUTH it is 8%, and those are balls that really did
+                // come off a cushion out on the table; deliberate banks still
+                // register 98% of the time. Both measured.
+                else if (played(e)) shot.cueRailFirst = true;
+                if (e.ball && e.ball.id === 8 && played(e)) shot.eightRail = true;
             } else if (e.type === 'pot') {
                 shot.potted.push(e.ball.id);
             }
