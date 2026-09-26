@@ -143,6 +143,7 @@ holding it back.
 | `ball_skins.js` | paints the sixteen balls onto canvases |
 | `panels.js` | makes the heads up panels draggable, and remembers where they went |
 | `index.html` | the page |
+| `docs.html` | the markdown in this repo, rendered, wherever it is served from |
 | `test/phys.test.js` | physics regression tests: `node test/phys.test.js` |
 | `test/rules.test.js` | eight ball rules tests: `node test/rules.test.js` |
 | `test/render2d.test.js` | flat renderer tests: `node test/render2d.test.js` |
@@ -167,6 +168,11 @@ holding it back.
 | `test/player.test.js` | value player tests: `node test/player.test.js` |
 | `tools/bundle-libs.sh` | rebuilds the two vendored libraries |
 
+Reading this from a githack url rather than from github? `docs.html` beside it
+renders these markdown files — `docs.html?doc=NETWORK.md`, and the tabs along
+the top reach the rest. It fetches the file next to itself, so a page pinned to
+a commit shows that commit's prose and cannot drift from the code it describes.
+
 `lib/three.js` is three.js r186 and `lib/cannon-es.js` is cannon-es 0.20, both
 MIT. Both ship as ES modules only these days, and a browser will not load a
 module over `file://`, which would have meant running a local server just to
@@ -174,6 +180,10 @@ open the game. So they are vendored as plain scripts that define `THREE` and
 `CANNON`, bundled with esbuild by `tools/bundle-libs.sh`. Nothing here needs a
 build step to run — the script is only for pulling in a newer version of either
 library.
+
+`lib/marked.js` is marked 12.0.2, MIT, vendored for the same reason: a page
+pinned to a commit should carry everything it needs, and a cdn is one more
+thing that can be unreachable or different tomorrow.
 
 `lib/Box2dWeb-2.1.a.3.js`, `two_d.js`, `three_d.js`, `draw.js` and
 `ball_textures.js` belong to the old `demo.html` prototype and are untouched.

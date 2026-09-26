@@ -18,3 +18,9 @@ npx esbuild node_modules/cannon-es/dist/cannon-es.js \
 # it only has to be copied. It is only fetched when somebody switches the AI
 # opponent on, which is why it is not in index.html with the others.
 cp node_modules/@tensorflow/tfjs/dist/tf.min.js tfjs.js
+
+# and so does marked, which docs.html uses to render the markdown files in
+# this repo. Vendored rather than fetched from a cdn for the same reason as
+# the rest: a page pinned to a commit should be the whole of what it needs,
+# and a cdn is one more thing that can be unreachable or different tomorrow.
+cp node_modules/marked/marked.min.js marked.js

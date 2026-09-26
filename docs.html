@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>billard_js &mdash; docs</title>
+<!--
+    docs.html - the markdown in this repo, rendered, from wherever it is served.
+
+    A .md file handed straight to a browser is a wall of asterisks, and the
+    repo is often read from a githack url rather than from github. So this page
+    fetches one of the markdown files *beside itself* and renders it. Beside
+    itself is the whole trick: a page pinned to a commit fetches that commit's
+    markdown, so the prose and the code it describes cannot drift apart, in
+    exactly the way the game's `?v=` tags stop a page pairing with a stale
+    script.
+
+    The renderer is vendored in lib/ rather than pulled from a cdn, for the
+    same reason three.js and cannon-es are: a pinned page should carry
+    everything it needs.
+-->
+<style>
+    :root {
+        --bg: #070a0c;
+        --panel: #0e1319;
+        --ink: #e9edf2;
+        --dim: #97a3b0;
+        --faint: #6f7f93;
+        --edge: rgba(255, 255, 255, 0.11);
+        --accent: #7fd0ff;
+        --amber: #ffcf9a;
+        --mono: ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    /* clear of the sticky header when a heading is jumped to */
+    html { scroll-behavior: smooth; scroll-padding-top: 66px; }
+
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15.5px/1.72 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ---------------------------------------------------------- chrome */
+
+    header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px 18px;
+        padding: 11px max(16px, 4vw);
+        background: rgba(7, 10, 12, 0.92);
+        border-bottom: 1px solid var(--edge);
+        backdrop-filter: blur(8px);
+    }
+
+    header .where {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--faint);
+        margin-right: auto;
+    }
+    header .where.loose { color: var(--amber); }
+
+    nav { display: flex; flex-wrap: wrap; gap: 4px; }
+    nav a {
+        padding: 3px 9px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        font-size: 12.5px;
+        color: var(--dim);
+    }
+    nav a:hover { background: rgba(255, 255, 255, 0.07); text-decoration: none; }
+    nav a.here { color: var(--ink); border-color: var(--edge); background: rgba(255, 255, 255, 0.06); }
+    nav .away { color: var(--faint); }
+
+    /* ----------------------------------------------------------- layout */
+
+    .wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 15.5em;
+        gap: 40px;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 30px max(16px, 4vw) 120px;
+    }
+
+    #toc {
+        position: sticky;
+        top: 64px;
+        align-self: start;
+        max-height: calc(100vh - 96px);
+        overflow-y: auto;
+        font-size: 12.5px;
+        line-height: 1.55;
+        border-left: 1px solid var(--edge);
+        padding-left: 14px;
+    }
+    #toc b {
+        display: block;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    #toc a { display: block; color: var(--dim); padding: 2.5px 0; }
+    #toc a:hover { color: var(--ink); text-decoration: none; }
+    #toc a.h3 { padding-left: 12px; font-size: 12px; color: var(--faint); }
+
+    @media (max-width: 860px) {
+        .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+        #toc { display: none; }
+    }
+
+    /* ------------------------------------------------------------ prose */
+
+    article { max-width: 44em; min-width: 0; }
+
+    article h1 {
+        font-size: 30px;
+        line-height: 1.22;
+        letter-spacing: -0.015em;
+        margin: 0 0 22px;
+    }
+    article h2 {
+        font-size: 21px;
+        margin: 46px 0 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--edge);
+        letter-spacing: -0.01em;
+    }
+    article h3 { font-size: 16.5px; margin: 30px 0 10px; color: var(--ink); }
+    article h4 { font-size: 14.5px; margin: 24px 0 8px; color: var(--dim); }
+
+    article p, article li { color: #d7dee6; }
+    article li { margin: 4px 0; }
+    article ul, article ol { padding-left: 22px; }
+
+    article strong { color: var(--ink); }
+    article em { color: var(--ink); font-style: italic; }
+
+    article blockquote {
+        margin: 20px 0;
+        padding: 2px 0 2px 16px;
+        border-left: 3px solid var(--accent);
+        color: var(--ink);
+        font-size: 17px;
+    }
+    article blockquote p { color: var(--ink); }
+
+    article hr { border: 0; border-top: 1px solid var(--edge); margin: 34px 0; }
+    /* a rule in the markdown followed by a heading that draws its own is two
+       rules and a gap where the author meant one */
+    article hr + h2 { border-top: 0; padding-top: 0; margin-top: 26px; }
+
+    /* ------------------------------------------------------------- code */
+
+    article code {
+        font-family: var(--mono);
+        font-size: 0.855em;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid var(--edge);
+        border-radius: 5px;
+        padding: 0.5px 4.5px;
+        color: #cfe3f2;
+    }
+
+    article pre {
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        padding: 13px 15px;
+        overflow-x: auto;
+        line-height: 1.6;
+    }
+    article pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+        font-size: 12.8px;
+        color: #cbd6e2;
+    }
+
+    /* ----------------------------------------------------------- tables */
+
+    /* The docs lean on tables - the feature list, the scores - and a table
+       that overflows its column takes the whole page sideways with it. */
+    .scroll { overflow-x: auto; margin: 18px 0; }
+
+    article table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+    article th, article td {
+        border: 1px solid var(--edge);
+        padding: 7px 11px;
+        text-align: left;
+        vertical-align: top;
+    }
+    article th { background: rgba(255, 255, 255, 0.05); color: var(--ink); font-weight: 600; }
+    article td { color: #d7dee6; }
+    article tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.022); }
+    article td code, article th code { white-space: nowrap; }
+
+    article img { max-width: 100%; }
+
+    /* --------------------------------------------------------- messages */
+
+    #state { color: var(--dim); font-size: 14px; }
+    #state.bad { color: #ff9d9d; }
+    #state pre { white-space: pre-wrap; }
+
+    .foot {
+        margin-top: 60px;
+        padding-top: 16px;
+        border-top: 1px solid var(--edge);
+        color: var(--faint);
+        font-size: 12.5px;
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <span class="where" id="where"></span>
+    <nav id="docs"></nav>
+    <nav id="links"></nav>
+</header>
+
+<div class="wrap">
+    <article id="doc"><p id="state">Loading&hellip;</p></article>
+    <aside id="toc"></aside>
+</div>
+
+<script src="lib/marked.js?v=54"></script>
+<script>
+(function () {
+    'use strict';
+
+    /* The files this page will render. An allowlist rather than "whatever the
+       url says": the name goes into a fetch against this origin, and a page
+       that will fetch and render anything it is pointed at is a different and
+       worse thing than a documentation viewer. */
+    var DOCS = [
+        {file: 'NETWORK.md', title: 'The value network'},
+        {file: 'README.md', title: 'README'},
+        {file: 'CLAUDE.md', title: 'Working on this repo'}
+    ];
+
+    var NOTEBOOK = 'notebooks/value-network.ipynb';
+
+    function el(id) { return document.getElementById(id); }
+
+    /**
+     * Where this page was served from, read off its own url.
+     *
+     * githack paths are /user/repo/ref/path, and the ref is the whole point:
+     * a commit id means this page and the markdown beside it cannot change
+     * under anybody, and a branch name means they are whatever was last
+     * pushed - worth saying out loud, in amber, exactly as the game does.
+     */
+    function servedFrom() {
+        var bits = window.location.pathname.split('/').filter(Boolean);
+        bits.pop();                                   // the page itself
+        if (bits.length < 3) return null;             // not a /user/repo/ref/ url
+        var ref = bits.slice(2).join('/');
+        return {
+            owner: bits[0], repo: bits[1], ref: ref,
+            pinned: /^[0-9a-f]{7,40}$/.test(ref),
+            text: ref.length > 24 ? ref.slice(0, 23) + '…' : ref
+        };
+    }
+
+    var served = servedFrom();
+
+    function showWhere() {
+        var w = el('where');
+        w.textContent = served
+            ? served.owner + '/' + served.repo + ' · ' + served.text
+            : 'served locally';
+        w.className = 'where' + (served && !served.pinned ? ' loose' : '');
+        w.title = served
+            ? (served.pinned
+                ? 'Pinned to a commit: this page and the text on it cannot change.'
+                : 'Served from the branch ' + served.ref + ': this is whatever ' +
+                  'was last pushed to it.')
+            : 'Served from your own machine.';
+    }
+
+    /** github, nbviewer and colab links for a file, at the ref this page came from. */
+    function atRef(host, path) {
+        if (!served) return null;
+        return host + served.owner + '/' + served.repo + '/blob/' + served.ref + '/' + path;
+    }
+
+    function chrome(current) {
+        var tabs = DOCS.map(function (d) {
+            return '<a href="?doc=' + d.file + '"' +
+                (d.file === current ? ' class="here"' : '') + '>' + d.title + '</a>';
+        }).join('');
+        el('docs').innerHTML = tabs;
+
+        var away = ['<a class="away" href="index.html">the game ↗</a>'];
+        var nb = atRef('https://nbviewer.org/github/', NOTEBOOK);
+        var colab = atRef('https://colab.research.google.com/github/', NOTEBOOK);
+        if (nb) away.push('<a class="away" href="' + nb + '">notebook ↗</a>');
+        if (colab) away.push('<a class="away" href="' + colab + '">in colab ↗</a>');
+        el('links').innerHTML = away.join('');
+    }
+
+    /* --------------------------------------------------------------- *
+     * rendering
+     * --------------------------------------------------------------- */
+
+    function slug(text, taken) {
+        var base = text.toLowerCase().replace(/[^\w\s-]/g, '').trim()
+            .replace(/\s+/g, '-') || 'section';
+        var id = base, n = 2;
+        while (taken[id]) id = base + '-' + n++;
+        taken[id] = true;
+        return id;
+    }
+
+    /** Anchors on the headings, and the list of them down the side. */
+    function contents(article) {
+        var taken = {}, out = [];
+        var heads = article.querySelectorAll('h2, h3');
+        for (var i = 0; i < heads.length; i++) {
+            var h = heads[i];
+            h.id = slug(h.textContent, taken);
+            out.push('<a class="' + h.tagName.toLowerCase() + '" href="#' + h.id + '">' +
+                h.textContent.replace(/[<>&]/g, '') + '</a>');
+        }
+        el('toc').innerHTML = out.length
+            ? '<b>on this page</b>' + out.join('')
+            : '';
+    }
+
+    /**
+     * Links as they should behave in a rendered page rather than in a repo.
+     *
+     * A link to another .md is a link to this page showing it; a link to the
+     * notebook goes to something that can render a notebook; anything else
+     * off this origin opens in its own tab.
+     */
+    function relink(article) {
+        var known = {};
+        DOCS.forEach(function (d) { known[d.file.toLowerCase()] = true; });
+
+        var links = article.getElementsByTagName('a');
+        for (var i = 0; i < links.length; i++) {
+            var a = links[i];
+            var href = a.getAttribute('href') || '';
+            if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(href)) {      // absolute
+                if (/^https?:/i.test(href)) a.target = '_blank';
+                continue;
+            }
+            if (href.charAt(0) === '#') continue;
+
+            var clean = href.split('#')[0].split('?')[0];
+            if (known[clean.toLowerCase()]) {
+                a.setAttribute('href', '?doc=' + clean);
+            } else if (/\.ipynb$/i.test(clean)) {
+                var nb = atRef('https://nbviewer.org/github/', clean);
+                if (nb) { a.setAttribute('href', nb); a.target = '_blank'; }
+            }
+        }
+    }
+
+    /** Tables scroll sideways on their own rather than taking the page with them. */
+    function wrapTables(article) {
+        var tables = article.getElementsByTagName('table');
+        for (var i = tables.length - 1; i >= 0; i--) {
+            var box = document.createElement('div');
+            box.className = 'scroll';
+            tables[i].parentNode.insertBefore(box, tables[i]);
+            box.appendChild(tables[i]);
+        }
+    }
+
+    function fail(message, detail) {
+        var article = el('doc');
+        article.innerHTML = '';
+        var p = document.createElement('p');
+        p.id = 'state';
+        p.className = 'bad';
+        p.textContent = message;
+        article.appendChild(p);
+        if (detail) {
+            var pre = document.createElement('pre');
+            pre.textContent = detail;
+            article.appendChild(pre);
+        }
+    }
+
+    function render(file, text) {
+        var article = el('doc');
+
+        if (typeof marked === 'undefined') {
+            // The renderer did not load. The text is still the text, so show
+            // it as it came rather than showing nothing.
+            article.innerHTML = '';
+            var pre = document.createElement('pre');
+            pre.textContent = text;
+            article.appendChild(pre);
+            return;
+        }
+
+        marked.setOptions({gfm: true, breaks: false});
+        article.innerHTML = marked.parse(text);
+
+        wrapTables(article);
+        contents(article);
+        relink(article);
+
+        var foot = document.createElement('p');
+        foot.className = 'foot';
+        foot.innerHTML = file + ', rendered by this page from the copy beside it' +
+            (served && served.pinned
+                ? ' at commit <code>' + served.ref.slice(0, 7) + '</code>.'
+                : '.') +
+            ' <a href="' + file + '">Read it as markdown.</a>';
+        article.appendChild(foot);
+
+        document.title = file.replace(/\.md$/i, '') + ' — billard_js';
+        if (window.location.hash) {
+            var target = document.getElementById(window.location.hash.slice(1));
+            // straight there: the page has only just appeared, and animating
+            // a scroll from a standing start is a scroll from nowhere
+            if (target) target.scrollIntoView({behavior: 'auto'});
+        }
+    }
+
+    /* --------------------------------------------------------------- *
+     * go
+     * --------------------------------------------------------------- */
+
+    var asked = (window.location.search.match(/[?&]doc=([^&]*)/) || [])[1];
+    asked = asked ? decodeURIComponent(asked) : DOCS[0].file;
+
+    var chosen = null;
+    DOCS.forEach(function (d) {
+        if (d.file.toLowerCase() === asked.toLowerCase()) chosen = d.file;
+    });
+
+    showWhere();
+    chrome(chosen);
+
+    if (!chosen) {
+        fail('No such document: ' + asked + '. This page renders ' +
+            DOCS.map(function (d) { return d.file; }).join(', ') + '.');
+        return;
+    }
+
+    // cache-bust with the same tag the scripts carry, so a fresh page cannot
+    // be handed a stale copy of the text it is describing
+    fetch(chosen + '?v=54').then(function (r) {
+        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        return r.text();
+    }).then(function (text) {
+        render(chosen, text);
+    }).catch(function (err) {
+        fail('Could not read ' + chosen + ' from beside this page.',
+            String(err && err.message || err) +
+            (window.location.protocol === 'file:'
+                ? '\n\nOpened over file://, where a browser will not let a page ' +
+                  'read the file next to it. Serve the folder over http, or open ' +
+                  'this page from a githack url.'
+                : ''));
+    });
+})();
+</script>
+</body>
+</html>

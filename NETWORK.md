@@ -14,7 +14,8 @@ likes least.
 
 This file is the reference. `README.md` § *Playing it without a browser* tells
 the story of how it went; `notebooks/value-network.ipynb` opens the shipped
-weights and shows them working.
+weights and shows them working. To read this rendered rather than raw, open
+`docs.html?doc=NETWORK.md` beside it.
 
 The notebook needs numpy, matplotlib and node, and runs in Google Colab as it
 stands — **File → Open notebook → GitHub**, paste

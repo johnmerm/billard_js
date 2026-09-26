@@ -4,7 +4,8 @@
 
 The scripts in `index.html` carry a `?v=` tag so a browser cannot pair a fresh
 page with a stale script. Bump every one of them together whenever any of them
-changes.
+changes. `docs.html` is in the same scheme — it tags its renderer and the
+markdown it fetches — so bump those two with the rest.
 
 `index.html` itself has no tag — it is the entry point — so a browser or a cdn
 can hand back an old copy of the page that then asks for the old scripts. A
