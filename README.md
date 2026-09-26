@@ -156,6 +156,9 @@ holding it back.
 | `train/collect.js` | self play across every core, written down: `node train/collect.js --games 400` |
 | `train/value.js` | learns to judge a position from that: `node train/value.js --data data/v1` |
 | `train/player.js` | plays by simulating each shot and judging what it leaves behind |
+| `train/dump.js` | positions and features as json, for anything outside node |
+| `NETWORK.md` | the network in full: what it sees, how it was trained, what it scores |
+| `notebooks/value-network.ipynb` | the shipped weights opened up and made to work |
 | `ai.js` | the trained player on the page: fetches the model, thinks without freezing it |
 | `test/geometry.test.js` | shot geometry tests: `node test/geometry.test.js` |
 | `test/match.test.js` | harness and bot tests: `node test/match.test.js` |
@@ -480,6 +483,14 @@ number, because the 3 and the 5 play identically and telling them apart would
 only let a network learn the rack instead of the game.
 
 ### Learning to judge a position
+
+**[`NETWORK.md`](NETWORK.md) is the reference for this section** — the encoder
+feature by feature, the architecture, the training procedure and what the
+shipped model scores. [`notebooks/value-network.ipynb`](notebooks/value-network.ipynb)
+opens the weights that are in this repository and runs them: a forward pass in
+four lines of numpy, the held-back scores reproduced from the same seeded
+split, and a map of what the network thinks every cue-ball position on a real
+table is worth.
 
 `train/value.js` trains a small network on that data to answer one question:
 you are about to shoot, here is the table — how often does this end with you
