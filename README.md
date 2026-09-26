@@ -603,6 +603,24 @@ exists before collecting data to close it. Twenty minutes of collecting and
 twenty of training bought a null result that ten minutes of measuring would
 have predicted.
 
+The same 24 racks under the rule as it now stands — either cushion will do,
+and a rattle in the mouth of the pocket is not one:
+
+| | shipped model | baseline bot |
+|---|---|---|
+| standard rules | 21/24 (88%) | 17/24 (71%) |
+| `blackcushion` | **23/24 (96%)** | 16/24 (67%) |
+
+The shape holds: the model finishes *more* cleanly with the rule on than
+without it, and the baseline bot slightly less cleanly. Nothing there for
+retraining to recover either.
+
+Five of the model's 23 clean finishes under the rule were kick *and* bank in
+the same shot, against none of the 21 without it. That is the shot the rule is
+really describing, and a player good enough to kick at the black finds it
+about one rack in five — which is worth knowing before turning the celebration
+up any further.
+
 ### Playing against it
 
 Each player's line in the score panel carries a small **AI** chip. Pressing it
