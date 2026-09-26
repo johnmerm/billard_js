@@ -12,10 +12,11 @@ as a search: try the pots the geometry offers, play each one out in the
 simulator, and keep whichever leaves the opponent the position the network
 likes least.
 
-This file is the reference. `README.md` § *Playing it without a browser* tells
-the story of how it went; `notebooks/value-network.ipynb` opens the shipped
-weights and shows them working. To read this rendered rather than raw, open
-`docs.html?doc=NETWORK.md` beside it.
+This file is the reference. [`README.md`](README.md) § *Playing it without a
+browser* tells the story of how it went;
+[`notebooks/value-network.ipynb`](notebooks/value-network.ipynb) opens the
+shipped weights and shows them working. To read this rendered rather than raw,
+open `docs.html?doc=NETWORK.md` beside it.
 
 The notebook needs numpy, matplotlib and node, and runs in Google Colab as it
 stands — **File → Open notebook → GitHub**, paste
@@ -317,7 +318,8 @@ offered it no legal shot to take. Wiring the cushion shots in took it to 29 in
 collected under the rule and trained anyway: validation mse 0.9984 against a
 constant predictor's 0.9962, held-back sign accuracy 51.3% against 57.7% on
 the training rows. Guessing the same number every time beat it. The model was
-deleted rather than shipped, and `README.md` carries the full post-mortem.
+deleted rather than shipped, and [`README.md`](README.md) carries the full
+post-mortem.
 
 The order to do these things in, learned the expensive way: **measure whether
 the gap exists before collecting data to close it.**
@@ -371,7 +373,7 @@ the page loads plain scripts and the model as a static file.
 | `train/bot.js` | the baseline, and the snapshot/restore the search runs on |
 | `train/dump.js` | positions and features as json, for anything outside node |
 | `model/value/` | the shipped weights, in the layout `tf.loadLayersModel` expects |
-| `notebooks/value-network.ipynb` | the weights opened up and made to work |
+| [`notebooks/value-network.ipynb`](notebooks/value-network.ipynb) | the weights opened up and made to work |
 
 The encoder runs unchanged in node and in the browser — the same file, loaded
 as a module in one and as a plain script in the other. If those two ever

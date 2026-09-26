@@ -242,7 +242,7 @@
     <aside id="toc"></aside>
 </div>
 
-<script src="lib/marked.js?v=54"></script>
+<script src="lib/marked.js?v=55"></script>
 <script>
 (function () {
     'use strict';
@@ -464,7 +464,7 @@
 
     // cache-bust with the same tag the scripts carry, so a fresh page cannot
     // be handed a stale copy of the text it is describing
-    fetch(chosen + '?v=54').then(function (r) {
+    fetch(chosen + '?v=55').then(function (r) {
         if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
         return r.text();
     }).then(function (text) {
