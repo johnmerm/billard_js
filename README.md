@@ -492,6 +492,11 @@ four lines of numpy, the held-back scores reproduced from the same seeded
 split, and a map of what the network thinks every cue-ball position on a real
 table is worth.
 
+It runs in Google Colab as it stands — **File → Open notebook → GitHub**, paste
+`https://github.com/johnmerm/billard_js` and pick it. The first cell clones the
+repo and installs node if they are not already there; with no `data/` to read,
+it plays sixty racks of its own. No GPU, and nothing to configure.
+
 `train/value.js` trains a small network on that data to answer one question:
 you are about to shoot, here is the table — how often does this end with you
 winning? Which shot to play then falls out of it as a search: try the pots the

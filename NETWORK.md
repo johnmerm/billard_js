@@ -16,6 +16,14 @@ This file is the reference. `README.md` § *Playing it without a browser* tells
 the story of how it went; `notebooks/value-network.ipynb` opens the shipped
 weights and shows them working.
 
+The notebook needs numpy, matplotlib and node, and runs in Google Colab as it
+stands — **File → Open notebook → GitHub**, paste
+`https://github.com/johnmerm/billard_js`, pick it, and run. Its first cell
+clones the repo and installs node if they are not already there, and since
+there is no `data/` in the repository it plays sixty racks of its own to score
+the model on. No GPU: the model is 15,265 parameters and the slow part is the
+billiards.
+
 ---
 
 ## Why a value function
@@ -312,6 +320,16 @@ deleted rather than shipped, and `README.md` carries the full post-mortem.
 
 The order to do these things in, learned the expensive way: **measure whether
 the gap exists before collecting data to close it.**
+
+**The margin is a judgement about a population of games, not a fact about
+billiards.** On its own held-back racks the model calls 58.4% of signs right.
+Shown 866 turns of the *searching* bot's games — a player it was never trained
+on — it calls 52.9%, and the constant predictor beats it on mse. On 1,936
+turns of the greedy bot's games, which is who played `data/v1`, it gets 61.0%.
+Small samples, and the direction is unmistakable: a value function
+learns the positions its training players steer into, and a better player
+steers somewhere else. That is the standing argument for collecting a new
+round of data every time the player improves, which is what `data/v2` is.
 
 **Eighty racks is about the smallest sample worth quoting.** Twenty of them had
 the first model at 14–6 against the searching bot, which looked like a far
