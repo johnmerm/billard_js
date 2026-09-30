@@ -1,0 +1,15 @@
+{
+  "name": "billard_js",
+  "private": true,
+  "description": "Training tools for the eight ball player. The game itself needs none of this: index.html loads plain scripts and nothing else.",
+  "scripts": {
+    "test": "for f in test/*.test.js; do node \"$f\" || exit 1; done",
+    "collect": "node train/collect.js",
+    "selfplay": "node train/selfplay.js",
+    "train": "node train/value.js",
+    "drive": "node tools/drive.js"
+  },
+  "devDependencies": {
+    "@tensorflow/tfjs": "4.22.0"
+  }
+}
