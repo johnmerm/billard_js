@@ -3,6 +3,27 @@
 An eight ball game in the browser: a table seen from directly above, and a
 second camera that rides inside the cue ball.
 
+## Where to find it
+
+- **[The game](https://raw.githack.com/johnmerm/billard_js/master/index.html)**,
+  and the same table
+  [under the house rule on the black](https://raw.githack.com/johnmerm/billard_js/master/index.html?house=blackcushion).
+- **[The value network, written up](https://raw.githack.com/johnmerm/billard_js/master/docs.html?doc=NETWORK.md)** —
+  `docs.html` renders the markdown in this repo, including
+  [this file](https://raw.githack.com/johnmerm/billard_js/master/docs.html?doc=README.md).
+- **The notebook that opens the network up**:
+  [rendered](https://nbviewer.org/github/johnmerm/billard_js/blob/master/notebooks/value-network.ipynb),
+  or [running, in Colab](https://colab.research.google.com/github/johnmerm/billard_js/blob/master/notebooks/value-network.ipynb).
+
+Those follow the default branch, which is what you want for reading. Put a
+commit id where `master` is and the link pins to a version that cannot change
+under you — the one to use when reporting that something is broken, since a
+branch link and a bug report can disagree about what the code says.
+
+With GitHub Pages switched on the same pages are at
+`https://johnmerm.github.io/billard_js/` — `index.html`, `docs.html?doc=…` and
+the rest — with no branch in the url at all.
+
 ## Playing it
 
 Open `index.html` — no build step, no package manager, no network. Cloning the
