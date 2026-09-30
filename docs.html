@@ -242,7 +242,7 @@
     <aside id="toc"></aside>
 </div>
 
-<script src="lib/marked.js?v=55"></script>
+<script src="lib/marked.js?v=56"></script>
 <script>
 (function () {
     'use strict';
@@ -292,8 +292,11 @@
         w.title = served
             ? (served.pinned
                 ? 'Pinned to a commit: this page and the text on it cannot change.'
-                : 'Served from the branch ' + served.ref + ': this is whatever ' +
-                  'was last pushed to it.')
+                // HEAD is not a branch, it is whichever branch is the default
+                : 'Served from ' + (served.ref === 'HEAD'
+                      ? 'the default branch'
+                      : 'the branch ' + served.ref) +
+                  ': this is whatever was last pushed to it.')
             : 'Served from your own machine.';
     }
 
@@ -464,7 +467,7 @@
 
     // cache-bust with the same tag the scripts carry, so a fresh page cannot
     // be handed a stale copy of the text it is describing
-    fetch(chosen + '?v=55').then(function (r) {
+    fetch(chosen + '?v=56').then(function (r) {
         if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
         return r.text();
     }).then(function (text) {
