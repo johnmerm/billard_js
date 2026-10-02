@@ -65,7 +65,9 @@
         left: 0;
         right: 0;
         display: flex;
-        flex-wrap: wrap;
+        /* no wrap: the buttons stay to the right of the score panel and fold
+           onto rows of their own rather than dropping the whole bar below it */
+        flex-wrap: nowrap;
         align-items: flex-start;
         justify-content: space-between;
         gap: 8px;
@@ -82,6 +84,7 @@
            every time the message changed would shift under your finger */
         width: 320px;
         max-width: calc(100vw - 2 * var(--pad));
+        flex-shrink: 0;
     }
 
     #turn { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
@@ -157,6 +160,9 @@
     #buttons {
         position: relative;
         display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
         gap: 8px;
         padding: 8px;
         align-self: flex-start;
@@ -741,6 +747,9 @@
         <button id="sound" title="Sound (M)">&#9834;</button>
         <button id="ai" title="Ask the network what it would play (H)">&#9788; <span class="btxt">Hint</span></button>
         <button id="dock" title="Put every panel back in its band (L)">&#8615; <span class="btxt">Dock panels</span></button>
+        <button id="savegame" title="Save the game to a file (G)">&#10515; <span class="btxt">Save game</span></button>
+        <button id="loadgame" title="Replay a saved game (or drop the file on the table)">&#9654;&#xFE0E; <span class="btxt">Replay</span></button>
+        <input type="file" id="loadfile" accept=".json,application/json" hidden>
         <button id="newgame" title="New rack (R)">&#8635; <span class="btxt">New rack</span></button>
     </div>
     </div>
@@ -790,23 +799,23 @@
 
     <!-- The version tag is what stops a cdn or a browser pairing this page with
          a stale script: change it whenever one of these files changes. -->
-    <script src="panels.js?v=55"></script>
-    <script src="lib/three.js?v=55"></script>
-    <script src="lib/cannon-es.js?v=55"></script>
-    <script src="phys.js?v=55"></script>
-    <script src="rules.js?v=55"></script>
-    <script src="ball_skins.js?v=55"></script>
-    <script src="render.js?v=55"></script>
-    <script src="render2d.js?v=55"></script>
-    <script src="train/geometry.js?v=55"></script>
-    <script src="brief.js?v=55"></script>
-    <script src="train/match.js?v=55"></script>
-    <script src="train/bot.js?v=55"></script>
-    <script src="train/encode.js?v=55"></script>
-    <script src="train/player.js?v=55"></script>
-    <script src="ai.js?v=55"></script>
-    <script src="llm.js?v=55"></script>
-    <script src="game.js?v=55"></script>
+    <script src="panels.js?v=57"></script>
+    <script src="lib/three.js?v=57"></script>
+    <script src="lib/cannon-es.js?v=57"></script>
+    <script src="phys.js?v=57"></script>
+    <script src="rules.js?v=57"></script>
+    <script src="ball_skins.js?v=57"></script>
+    <script src="render.js?v=57"></script>
+    <script src="render2d.js?v=57"></script>
+    <script src="train/geometry.js?v=57"></script>
+    <script src="brief.js?v=57"></script>
+    <script src="train/match.js?v=57"></script>
+    <script src="train/bot.js?v=57"></script>
+    <script src="train/encode.js?v=57"></script>
+    <script src="train/player.js?v=57"></script>
+    <script src="ai.js?v=57"></script>
+    <script src="llm.js?v=57"></script>
+    <script src="game.js?v=57"></script>
 
 <div id="cheer" aria-live="polite"></div>
 

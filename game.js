@@ -1722,10 +1722,8 @@
 
         // A saved game dropped on the table plays itself back. The file is the
         // whole bug report, so opening it should be no harder than dropping it.
-        window.addEventListener('dragover', function (e) { e.preventDefault(); });
-        window.addEventListener('drop', function (e) {
-            e.preventDefault();
-            var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        // The Replay button is the same thing for a thumb, which cannot drop.
+        function replayFile(file) {
             if (!file) return;
             var reader = new FileReader();
             reader.onload = function () {
@@ -1739,6 +1737,24 @@
                 replay(saved);
             };
             reader.readAsText(file);
+        }
+        window.addEventListener('dragover', function (e) { e.preventDefault(); });
+        window.addEventListener('drop', function (e) {
+            e.preventDefault();
+            replayFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+        });
+        var loadFile = document.getElementById('loadfile');
+        document.getElementById('loadgame').addEventListener('click', function () {
+            loadFile.click();
+            this.blur();
+        });
+        loadFile.addEventListener('change', function () {
+            replayFile(this.files && this.files[0]);
+            this.value = '';        // so picking the same file again still fires
+        });
+        document.getElementById('savegame').addEventListener('click', function () {
+            saveGame();
+            this.blur();
         });
 
         window.addEventListener('resize', drawSpinWidget);

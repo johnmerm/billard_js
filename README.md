@@ -68,7 +68,7 @@ with a keyboard.
 | the **cue** slider, or **[** **]** | raise the cue for a jump shot — it drops back to level after every shot |
 | the cue ball pane | tap it to swap the two views |
 | the seam between the views | drag it to give one of them more room |
-| the top right buttons | swap views, sound, hint, dock panels, new rack |
+| the top right buttons | swap views, sound, hint, dock panels, save game, replay, new rack |
 | the **AI** chip on a player's line | hand that seat to the network, or take it back |
 | **Hint**, or **H** | ask the network what it would play, without it playing it |
 | the **⋮⋮** grip on a panel | drag it anywhere; double tap to put it back |
@@ -211,8 +211,8 @@ thing that can be unreachable or different tomorrow.
 
 ## Saving a game
 
-`G` writes the game out as a file, and dropping one back on the table replays
-it. `Billiards.saveGame()` and `Billiards.replay(log)` do the same from the
+`G` or **Save game** writes the game out as a file, and **Replay** — or
+dropping the file on the table — plays one back. `Billiards.saveGame()` and `Billiards.replay(log)` do the same from the
 console.
 
 The file holds the rack order, the house rules in force, and every placement
