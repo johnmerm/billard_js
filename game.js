@@ -2146,7 +2146,12 @@
         el.className = ref && !ref.pinned ? 'loose' : '';
         el.title = ref
             ? (ref.pinned ? 'Pinned to a commit: this page cannot change.'
-                          : 'Served from the branch ' + ref.ref +
+                          // HEAD is not a branch, it is whichever branch is the
+                          // default - the form the readme links use, so it is
+                          // the one people will hover over
+                          : 'Served from ' + (ref.ref === 'HEAD'
+                                ? 'the default branch'
+                                : 'the branch ' + ref.ref) +
                             ': this page is whatever was last pushed to it.')
             : 'Served from your own machine.';
     }
